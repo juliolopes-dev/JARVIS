@@ -55,21 +55,20 @@ export function AppLayout() {
         />
       )}
 
-      {/* Sidebar — drawer no mobile, fixo no desktop */}
-      <div
-        className={cn(
-          'fixed md:relative z-40 md:z-auto h-full transition-transform duration-200',
-          'md:translate-x-0',
-          sidebarAberta ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
-        )}
-      >
+      {/* Sidebar — drawer no mobile (fixed), normal no desktop (relative no flex) */}
+      <div className={cn(
+        // Mobile: fixed drawer
+        'fixed inset-y-0 left-0 z-40 transition-transform duration-200',
+        'md:relative md:z-auto md:translate-x-0 md:flex-shrink-0',
+        sidebarAberta ? 'translate-x-0' : '-translate-x-full'
+      )}>
         <Sidebar />
       </div>
 
       <SidebarToggle />
 
       {/* Conteúdo principal */}
-      <main className="flex-1 overflow-hidden pb-14 md:pb-0">
+      <main className="flex-1 min-w-0 overflow-hidden pb-14 md:pb-0">
         <Outlet />
       </main>
 
