@@ -154,6 +154,7 @@ async def detectar_lembrete(mensagem: str) -> dict | None:
     from zoneinfo import ZoneInfo
 
     try:
+        import re
         agora = datetime.now(ZoneInfo("America/Sao_Paulo")).strftime("%Y-%m-%dT%H:%M:%S-03:00")
         cliente = get_openai()
         response = await cliente.chat.completions.create(
@@ -164,11 +165,18 @@ async def detectar_lembrete(mensagem: str) -> dict | None:
                     "content": LEMBRETE_PARSE_PROMPT.format(agora=agora, mensagem=mensagem[:500]),
                 }
             ],
-            max_tokens=150,
+            max_tokens=200,
             temperature=0,
+            response_format={"type": "json_object"},
         )
         texto = response.choices[0].message.content.strip()
-        dados = json.loads(texto)
+        if not texto:
+            return None
+        # Extrair JSON mesmo se vier com texto em volta
+        match = re.search(r'\{.*\}', texto, re.DOTALL)
+        if not match:
+            return None
+        dados = json.loads(match.group())
         if dados.get("eh_lembrete"):
             return dados
         return None
