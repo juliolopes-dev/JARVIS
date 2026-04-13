@@ -120,13 +120,27 @@ async def version():
 
 frontend_dist = Path(__file__).parent.parent / "frontend" / "dist"
 if frontend_dist.exists():
+    from fastapi.responses import FileResponse
+    from fastapi import Response
+    import mimetypes
+
     # Serve os assets do React
     app.mount("/assets", StaticFiles(directory=str(frontend_dist / "assets")), name="assets")
 
-    # Catch-all para o React Router (SPA)
-    from fastapi.responses import FileResponse
+    # Arquivos estaticos da raiz que NAO devem ser capturados pelo SPA catch-all
+    _static_root_files = {
+        "sw.js", "sw.mjs", "registerSW.js", "manifest.webmanifest",
+        "favicon.svg", "favicon.ico", "robots.txt",
+    }
 
     @app.get("/{full_path:path}", include_in_schema=False)
     async def spa_fallback(full_path: str):
+        # Servir arquivos estaticos da raiz diretamente
+        if full_path in _static_root_files:
+            arquivo = frontend_dist / full_path
+            if arquivo.exists():
+                media_type, _ = mimetypes.guess_type(full_path)
+                return FileResponse(str(arquivo), media_type=media_type or "application/octet-stream")
+        # SPA fallback — todas as outras rotas retornam index.html
         index = frontend_dist / "index.html"
         return FileResponse(str(index))
