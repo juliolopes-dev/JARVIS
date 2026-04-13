@@ -1,9 +1,20 @@
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
     # Banco
     database_url: str
+
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def normalizar_database_url(cls, v: str) -> str:
+        """Normaliza qualquer formato de URL PostgreSQL para postgresql+asyncpg://"""
+        if v.startswith("postgres://"):
+            v = v.replace("postgres://", "postgresql+asyncpg://", 1)
+        elif v.startswith("postgresql://"):
+            v = v.replace("postgresql://", "postgresql+asyncpg://", 1)
+        return v
 
     # Auth
     jwt_secret: str
