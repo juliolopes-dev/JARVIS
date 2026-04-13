@@ -131,6 +131,7 @@ if frontend_dist.exists():
     _static_root_files = {
         "sw.js", "sw.mjs", "registerSW.js", "manifest.webmanifest",
         "favicon.svg", "favicon.ico", "robots.txt",
+        "pwa-192x192.png", "pwa-512x512.png", "apple-touch-icon.png",
     }
 
     @app.get("/{full_path:path}", include_in_schema=False)
