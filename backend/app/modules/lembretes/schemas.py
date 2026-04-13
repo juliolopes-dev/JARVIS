@@ -13,12 +13,14 @@ class LembreteCreate(BaseModel):
     @classmethod
     def validar_data_futura(cls, v: datetime) -> datetime:
         from datetime import timezone
-        agora = datetime.now(timezone.utc)
+        from zoneinfo import ZoneInfo
+        brt = ZoneInfo("America/Sao_Paulo")
+        # Se vier sem timezone, assumir America/Sao_Paulo
         if v.tzinfo is None:
-            # Assumir America/Sao_Paulo se sem timezone
-            from zoneinfo import ZoneInfo
-            v = v.replace(tzinfo=ZoneInfo("America/Sao_Paulo"))
-        if v <= agora:
+            v = v.replace(tzinfo=brt)
+        # Comparar com agora em UTC (ambos com timezone, comparacao correta)
+        agora = datetime.now(timezone.utc)
+        if v.astimezone(timezone.utc) <= agora:
             raise ValueError("A data do lembrete deve ser no futuro")
         return v
 

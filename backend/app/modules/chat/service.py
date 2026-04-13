@@ -115,12 +115,15 @@ async def enviar_mensagem_stream(
                 )
                 lembrete = await criar_lembrete(dados_lembrete, id_usuario, db_lembrete)
                 await db_lembrete.commit()
+                from zoneinfo import ZoneInfo
+                brt = ZoneInfo("America/Sao_Paulo")
+                dat_brt = dat_lembrete.astimezone(brt)
                 confirmacao_lembrete = (
                     f"\n\n[LEMBRETE_CRIADO: {lembrete.titulo} | "
-                    f"{dat_lembrete.strftime('%d/%m/%Y às %H:%M')}]"
+                    f"{dat_brt.strftime('%d/%m/%Y às %H:%M')}]"
                 )
         except Exception as e:
-            logger.warning("Falha ao criar lembrete via chat: {}", str(e))
+            logger.warning("Falha ao criar lembrete via chat: {} | dados={}", str(e), lembrete_info)
 
     # 3. Extrair memoria em background com sessao propria (nao bloqueia o streaming)
     import asyncio
