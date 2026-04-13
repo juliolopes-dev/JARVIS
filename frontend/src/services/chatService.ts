@@ -83,4 +83,13 @@ export const chatService = {
 
     onDone()
   },
+
+  async transcreverAudio(blob: Blob, filename: string): Promise<string> {
+    const form = new FormData()
+    form.append('audio', blob, filename)
+    const res = await api.post<{ texto: string }>('/chat/transcrever', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    return res.data.texto
+  },
 }

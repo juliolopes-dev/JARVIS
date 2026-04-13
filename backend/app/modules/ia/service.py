@@ -185,6 +185,29 @@ async def detectar_lembrete(mensagem: str) -> dict | None:
         return None
 
 
+async def transcrever_audio(audio_bytes: bytes, filename: str = "audio.webm") -> str:
+    """
+    Transcreve audio via OpenAI Whisper.
+    Retorna o texto transcrito.
+    """
+    import io
+    cliente = get_openai()
+    audio_file = io.BytesIO(audio_bytes)
+    audio_file.name = filename
+    try:
+        response = await cliente.audio.transcriptions.create(
+            model="whisper-1",
+            file=audio_file,
+            language="pt",
+        )
+        texto = response.text.strip()
+        logger.info("Audio transcrito | chars={}", len(texto))
+        return texto
+    except Exception as e:
+        logger.error("Falha ao transcrever audio: {}", str(e))
+        raise
+
+
 async def gerar_embedding(texto: str) -> list[float]:
     """Gera embedding via OpenAI text-embedding-3-small (1536 dim)."""
     cliente = get_openai()

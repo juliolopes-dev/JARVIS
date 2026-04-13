@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -8,6 +8,7 @@ from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.modules.auth.models import Usuario
 from app.modules.chat import service
+from app.modules.ia import service as ia_service
 from app.modules.chat.schemas import (
     ConversaCreate,
     ConversaResponse,
@@ -105,3 +106,20 @@ async def listar_mensagens(
     if not conversa:
         raise HTTPException(status_code=404, detail="Conversa nao encontrada")
     return await service.listar_mensagens(id_conversa, db, pagina, por_pagina)
+
+
+@router.post("/transcrever")
+async def transcrever_audio(
+    audio: UploadFile = File(...),
+    usuario: Usuario = Depends(get_current_user),
+):
+    """Transcreve audio via Whisper e retorna o texto."""
+    if audio.size and audio.size > 25 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Audio muito grande (max 25MB)")
+    conteudo = await audio.read()
+    if not conteudo:
+        raise HTTPException(status_code=400, detail="Audio vazio")
+    texto = await ia_service.transcrever_audio(conteudo, audio.filename or "audio.webm")
+    if not texto:
+        raise HTTPException(status_code=422, detail="Nao foi possivel transcrever o audio")
+    return {"texto": texto}
