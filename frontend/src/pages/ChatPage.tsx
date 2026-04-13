@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { MessageSquare } from 'lucide-react'
+import { MessageSquare, Menu } from 'lucide-react'
 import { toast } from 'sonner'
 import { MensagemItem } from '@/components/chat/MensagemItem'
 import { ChatInput } from '@/components/chat/ChatInput'
@@ -21,7 +21,7 @@ const PLACEHOLDER_STREAMING: Mensagem = {
 export function ChatPage() {
   const { idConversa } = useParams<{ idConversa: string }>()
   const navigate = useNavigate()
-  const { conversaAtiva, setConversaAtiva, setStreamingAtivo } = useAppStore()
+  const { conversaAtiva, setConversaAtiva, setStreamingAtivo, setSidebarAberta } = useAppStore()
   const [mensagens, setMensagens] = useState<Mensagem[]>([])
   const [carregando, setCarregando] = useState(false)
   const [streaming, setStreaming] = useState(false)
@@ -108,7 +108,17 @@ export function ChatPage() {
   // Estado inicial — sem conversa selecionada
   if (!idConversa) {
     return (
-      <div className="h-full flex flex-col items-center justify-center text-center px-4">
+      <div className="h-full flex flex-col">
+        {/* Header com menu mobile */}
+        <div className="shrink-0 flex items-center px-4 h-14 border-b border-surface-border md:hidden">
+          <button
+            onClick={() => setSidebarAberta(true)}
+            className="p-1.5 rounded text-text-muted hover:text-text-primary hover:bg-surface-overlay transition-colors cursor-pointer"
+          >
+            <Menu size={18} />
+          </button>
+        </div>
+        <div className="flex-1 flex flex-col items-center justify-center text-center px-4">
         <div className="w-12 h-12 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center mb-4">
           <span className="text-accent text-xl font-bold">J</span>
         </div>
@@ -116,6 +126,7 @@ export function ChatPage() {
         <p className="text-sm text-text-muted max-w-xs">
           Selecione uma conversa na sidebar ou crie uma nova para começar.
         </p>
+        </div>
       </div>
     )
   }
@@ -123,10 +134,17 @@ export function ChatPage() {
   return (
     <div className="h-full flex flex-col">
       {/* Header mínimo */}
-      <div className="shrink-0 flex items-center px-4 md:px-6 h-14 border-b border-surface-border">
-        <div className="flex items-center gap-2">
-          <MessageSquare size={15} className="text-text-muted" />
-          <span className="text-sm font-medium text-text-primary">
+      <div className="shrink-0 flex items-center gap-2 px-4 md:px-6 h-14 border-b border-surface-border">
+        {/* Botão menu — só no mobile */}
+        <button
+          onClick={() => setSidebarAberta(true)}
+          className="md:hidden p-1.5 rounded text-text-muted hover:text-text-primary hover:bg-surface-overlay transition-colors cursor-pointer shrink-0"
+        >
+          <Menu size={18} />
+        </button>
+        <div className="flex items-center gap-2 min-w-0">
+          <MessageSquare size={15} className="text-text-muted shrink-0" />
+          <span className="text-sm font-medium text-text-primary truncate">
             {conversaAtiva?.titulo || 'Nova conversa'}
           </span>
         </div>
