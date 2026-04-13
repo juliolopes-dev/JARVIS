@@ -8,7 +8,7 @@ import { useAppStore } from '@/store/useAppStore'
 function BottomNav() {
   const location = useLocation()
   const navigate = useNavigate()
-  const { sidebarAberta, setSidebarAberta } = useAppStore()
+  const { setSidebarAberta } = useAppStore()
 
   const items = [
     { path: '/chat', icon: MessageSquare, label: 'Chat' },
@@ -46,33 +46,38 @@ export function AppLayout() {
   const { sidebarAberta, setSidebarAberta } = useAppStore()
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      {/* Overlay mobile — fecha sidebar ao clicar fora */}
+    <div className="flex h-screen overflow-hidden bg-surface">
+      {/* ── Desktop: sidebar ocupa espaço real no flex ── */}
+      <div className={cn(
+        'hidden md:flex flex-shrink-0 transition-all duration-200',
+        sidebarAberta ? 'w-[260px]' : 'w-0'
+      )}>
+        {sidebarAberta && <Sidebar />}
+      </div>
+
+      {/* ── Mobile: sidebar como drawer fixo ── */}
       {sidebarAberta && (
         <div
           className="md:hidden fixed inset-0 z-30 bg-black/50"
           onClick={() => setSidebarAberta(false)}
         />
       )}
-
-      {/* Sidebar — drawer no mobile (fixed), normal no desktop (relative no flex) */}
       <div className={cn(
-        // Mobile: fixed drawer
-        'fixed inset-y-0 left-0 z-40 transition-transform duration-200',
-        'md:relative md:z-auto md:translate-x-0 md:flex-shrink-0',
+        'md:hidden fixed inset-y-0 left-0 z-40 transition-transform duration-200',
         sidebarAberta ? 'translate-x-0' : '-translate-x-full'
       )}>
         <Sidebar />
       </div>
 
+      {/* ── Botão para reabrir sidebar (desktop) ── */}
       <SidebarToggle />
 
-      {/* Conteúdo principal */}
+      {/* ── Conteúdo principal ── */}
       <main className="flex-1 min-w-0 overflow-hidden pb-14 md:pb-0">
         <Outlet />
       </main>
 
-      {/* Navbar inferior mobile */}
+      {/* ── Navbar inferior mobile ── */}
       <BottomNav />
     </div>
   )

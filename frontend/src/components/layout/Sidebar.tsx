@@ -84,11 +84,7 @@ export function Sidebar() {
 
   return (
     <aside
-      className={cn(
-        'flex flex-col border-r border-surface-border',
-        'bg-surface transition-all duration-200',
-        sidebarAberta ? 'w-[260px]' : 'w-0 overflow-hidden border-r-0'
-      )}
+      className="w-[260px] flex flex-col border-r border-surface-border bg-surface h-full"
     >
       {/* Header */}
       <div className="flex items-center justify-between px-4 h-14 border-b border-surface-border shrink-0">
