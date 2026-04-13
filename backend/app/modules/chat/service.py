@@ -96,6 +96,7 @@ async def enviar_mensagem_stream(
 
     # 2. Detectar lembrete na mensagem (antes do streaming)
     lembrete_info = await ia_service.detectar_lembrete(conteudo)
+    logger.info("Deteccao de lembrete | resultado={}", lembrete_info)
     confirmacao_lembrete = ""
     if lembrete_info:
         try:
