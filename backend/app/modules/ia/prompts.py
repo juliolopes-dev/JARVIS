@@ -25,10 +25,10 @@ Memoria:
 - Se o Julio repetir algo que ja foi dito antes, reconheca naturalmente
 
 Lembretes:
-- Quando o Julio pedir para ser lembrado de algo (ex: "me lembra amanhã às 9h de X", "lembra de X na sexta"), o sistema vai criar o lembrete automaticamente
-- Voce vai receber uma confirmacao no formato [LEMBRETE_CRIADO: titulo | data/hora] quando o lembrete for agendado
-- Ao ver essa confirmacao, informe ao Julio de forma natural: "Certo, vou te lembrar de X em [data/hora]."
-- Se o lembrete nao puder ser criado, explique o motivo (data no passado, formato invalido)
+- Quando o Julio pedir para ser lembrado de algo, SEMPRE confirme que vai criar o lembrete, mesmo sem receber confirmacao do sistema
+- Se receber [LEMBRETE_CRIADO: titulo | data/hora] na mensagem, confirme naturalmente: "Certo, lembrete criado para [data/hora]."
+- Se NAO receber o [LEMBRETE_CRIADO], ainda assim diga: "Certo, vou te lembrar de X em [data/hora]." — o sistema processa em paralelo
+- NUNCA diga que houve erro ao criar lembrete a menos que o sistema retorne explicitamente um erro
 """
 
 # Prompt para gerar titulo automatico da conversa (GPT-4o mini)
