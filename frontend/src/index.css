@@ -1,0 +1,160 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: #09090b;
+    color: #fafafa;
+    font-family: 'Inter', system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 22px;
+  }
+
+  /* Scrollbar customizada — discreta, dark */
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #3f3f46;
+    border-radius: 2px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #52525b;
+  }
+
+  /* Selection */
+  ::selection {
+    background: rgba(59, 130, 246, 0.25);
+    color: #fafafa;
+  }
+
+  /* Focus outline global */
+  :focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px #09090b, 0 0 0 4px rgba(59, 130, 246, 0.5);
+  }
+}
+
+@layer utilities {
+  /* Cursor de streaming — pisca no final da resposta */
+  .streaming-cursor::after {
+    content: '▋';
+    display: inline-block;
+    animation: cursorBlink 1s step-end infinite;
+    color: #3b82f6;
+    margin-left: 1px;
+  }
+
+  /* Texto com gradiente para títulos */
+  .text-gradient {
+    background: linear-gradient(135deg, #fafafa 0%, #a1a1aa 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Linha truncada */
+  .truncate-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}
+
+/* Markdown nas respostas do Jarvis */
+.prose-jarvis {
+  color: #e4e4e7;
+  font-size: 15px;
+  line-height: 1.7;
+}
+.prose-jarvis p { margin: 0 0 12px; }
+.prose-jarvis p:last-child { margin-bottom: 0; }
+.prose-jarvis h1, .prose-jarvis h2, .prose-jarvis h3 {
+  color: #fafafa;
+  font-weight: 600;
+  margin: 20px 0 8px;
+}
+.prose-jarvis h1 { font-size: 18px; }
+.prose-jarvis h2 { font-size: 16px; }
+.prose-jarvis h3 { font-size: 14px; }
+.prose-jarvis ul, .prose-jarvis ol {
+  margin: 8px 0 12px;
+  padding-left: 20px;
+}
+.prose-jarvis li { margin: 4px 0; }
+.prose-jarvis code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  background: #18181b;
+  border: 1px solid #27272a;
+  border-radius: 4px;
+  padding: 1px 5px;
+  color: #a5b4fc;
+}
+.prose-jarvis pre {
+  background: #111113;
+  border: 1px solid #27272a;
+  border-radius: 8px;
+  padding: 16px;
+  overflow-x: auto;
+  margin: 12px 0;
+}
+.prose-jarvis pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 13px;
+  color: #e4e4e7;
+}
+.prose-jarvis blockquote {
+  border-left: 2px solid #3b82f6;
+  padding-left: 12px;
+  color: #a1a1aa;
+  margin: 12px 0;
+}
+.prose-jarvis table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0;
+  font-size: 13px;
+}
+.prose-jarvis th {
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 1px solid #27272a;
+  color: #a1a1aa;
+  font-weight: 500;
+}
+.prose-jarvis td {
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.prose-jarvis a {
+  color: #3b82f6;
+  text-decoration: none;
+}
+.prose-jarvis a:hover {
+  text-decoration: underline;
+}
+.prose-jarvis strong { color: #fafafa; font-weight: 600; }
+.prose-jarvis hr {
+  border: none;
+  border-top: 1px solid #27272a;
+  margin: 16px 0;
+}
