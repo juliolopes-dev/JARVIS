@@ -55,8 +55,8 @@ export function LembretesPage() {
     }
     setSalvando(true)
     try {
-      // Converter datetime-local para ISO com timezone
-      const dat = new Date(form.dat_lembrete).toISOString()
+      // Preservar horario local com offset -03:00 (nao usar toISOString que converte para UTC)
+      const dat = form.dat_lembrete + ':00-03:00'
       const lembrete = await lembretesService.criar({
         titulo: form.titulo.trim(),
         descricao: form.descricao.trim() || undefined,
