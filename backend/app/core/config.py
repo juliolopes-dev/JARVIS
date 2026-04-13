@@ -9,11 +9,23 @@ class Settings(BaseSettings):
     @field_validator("database_url", mode="before")
     @classmethod
     def normalizar_database_url(cls, v: str) -> str:
-        """Normaliza qualquer formato de URL PostgreSQL para postgresql+asyncpg://"""
+        """Normaliza qualquer formato de URL PostgreSQL para postgresql+asyncpg://
+        Remove parametros incompativeis com asyncpg (sslmode, etc).
+        """
         if v.startswith("postgres://"):
             v = v.replace("postgres://", "postgresql+asyncpg://", 1)
         elif v.startswith("postgresql://"):
             v = v.replace("postgresql://", "postgresql+asyncpg://", 1)
+        # Remover parametros de query incompativeis com asyncpg
+        if "?" in v:
+            base, params = v.split("?", 1)
+            # Filtrar apenas parametros suportados pelo asyncpg
+            params_suportados = []
+            for param in params.split("&"):
+                chave = param.split("=")[0].lower()
+                if chave not in ("sslmode", "ssl", "connect_timeout", "application_name"):
+                    params_suportados.append(param)
+            v = base + ("?" + "&".join(params_suportados) if params_suportados else "")
         return v
 
     # Auth
