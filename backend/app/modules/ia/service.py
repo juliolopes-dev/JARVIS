@@ -95,9 +95,9 @@ async def _stream_claude(
 async def _stream_openai(
     mensagens: list[dict], system: str
 ) -> AsyncGenerator[tuple[str, str, int, int], None]:
-    """Streaming via OpenAI GPT-4o mini (fallback)."""
+    """Streaming via OpenAI GPT-4o (fallback)."""
     cliente = get_openai()
-    modelo = "gpt-4o-mini"
+    modelo = "gpt-4o"
     tokens_entrada = 0
     tokens_saida = 0
 
@@ -124,11 +124,11 @@ async def _stream_openai(
 
 
 async def gerar_titulo(primeira_mensagem: str) -> str:
-    """Gera titulo curto para a conversa usando GPT-4o mini (mais barato)."""
+    """Gera titulo curto para a conversa usando GPT-4o."""
     try:
         cliente = get_openai()
         response = await cliente.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-4o",
             messages=[
                 {
                     "role": "user",
@@ -157,7 +157,7 @@ async def detectar_lembrete(mensagem: str) -> dict | None:
         agora = datetime.now(ZoneInfo("America/Sao_Paulo")).strftime("%Y-%m-%dT%H:%M:%S-03:00")
         cliente = get_openai()
         response = await cliente.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-4o",
             messages=[
                 {
                     "role": "user",
