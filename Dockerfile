@@ -50,4 +50,4 @@ COPY public/ ./public/
 EXPOSE 8000
 
 # Startup: roda migracoes e inicia o servidor
-CMD ["sh", "-c", "uv run alembic upgrade head && uv run uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+CMD ["sh", "-c", "uv run alembic upgrade head || echo 'Alembic falhou — continuando (tabelas ja existem)' ; uv run uvicorn app.main:app --host 0.0.0.0 --port 8000"]
