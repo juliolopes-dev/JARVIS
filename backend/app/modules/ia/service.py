@@ -15,7 +15,7 @@ from loguru import logger
 from openai import AsyncOpenAI
 
 from app.core.config import settings
-from app.modules.ia.prompts import SYSTEM_PROMPT, TITULO_PROMPT
+from app.modules.ia.prompts import LEMBRETE_PARSE_PROMPT, SYSTEM_PROMPT, TITULO_PROMPT
 
 # Clientes de IA (instanciados uma vez)
 _claude_client: anthropic.AsyncAnthropic | None = None
@@ -142,6 +142,39 @@ async def gerar_titulo(primeira_mensagem: str) -> str:
     except Exception as e:
         logger.warning("Falha ao gerar titulo: {}", str(e))
         return "Nova conversa"
+
+
+async def detectar_lembrete(mensagem: str) -> dict | None:
+    """
+    Detecta se a mensagem e um pedido de lembrete e retorna os dados parseados.
+    Retorna None se nao for um pedido de lembrete.
+    """
+    import json
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    try:
+        agora = datetime.now(ZoneInfo("America/Sao_Paulo")).strftime("%Y-%m-%dT%H:%M:%S-03:00")
+        cliente = get_openai()
+        response = await cliente.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "user",
+                    "content": LEMBRETE_PARSE_PROMPT.format(agora=agora, mensagem=mensagem[:500]),
+                }
+            ],
+            max_tokens=150,
+            temperature=0,
+        )
+        texto = response.choices[0].message.content.strip()
+        dados = json.loads(texto)
+        if dados.get("eh_lembrete"):
+            return dados
+        return None
+    except Exception as e:
+        logger.warning("Falha ao detectar lembrete: {}", str(e))
+        return None
 
 
 async def gerar_embedding(texto: str) -> list[float]:

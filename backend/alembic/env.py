@@ -12,6 +12,7 @@ from app.core.database import Base
 from app.modules.auth.models import Usuario  # noqa: F401
 from app.modules.chat.models import Conversa, Mensagem  # noqa: F401
 from app.modules.config.models import Configuracao  # noqa: F401
+from app.modules.lembretes.models import Lembrete  # noqa: F401
 from app.modules.memoria.models import Memoria, Pessoa  # noqa: F401
 from app.modules.notificacoes.models import SubscricaoPush  # noqa: F401
 from app.modules.tarefas.models import TarefaAgendada  # noqa: F401

@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import {
   MessageSquare,
   Brain,
+  Bell,
   Settings,
   Plus,
   Trash2,
@@ -71,6 +72,7 @@ export function Sidebar() {
 
   const navItems = [
     { path: '/chat', label: 'Chat', icon: MessageSquare },
+    { path: '/lembretes', label: 'Lembretes', icon: Bell },
     { path: '/memoria', label: 'Memória', icon: Brain },
     { path: '/config', label: 'Configurações', icon: Settings },
   ]

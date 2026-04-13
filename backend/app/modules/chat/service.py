@@ -94,7 +94,35 @@ async def enviar_mensagem_stream(
     db.add(msg_usuario)
     await db.flush()
 
-    # 2. Extrair memoria em background com sessao propria (nao bloqueia o streaming)
+    # 2. Detectar lembrete na mensagem (antes do streaming)
+    lembrete_info = await ia_service.detectar_lembrete(conteudo)
+    confirmacao_lembrete = ""
+    if lembrete_info:
+        try:
+            from datetime import datetime
+            from app.core.database import AsyncSessionLocal
+            from app.modules.lembretes.schemas import LembreteCreate
+            from app.modules.lembretes.service import criar_lembrete
+
+            dat_str = lembrete_info["dat_lembrete"]
+            dat_lembrete = datetime.fromisoformat(dat_str)
+
+            async with AsyncSessionLocal() as db_lembrete:
+                dados_lembrete = LembreteCreate(
+                    titulo=lembrete_info["titulo"],
+                    descricao=lembrete_info.get("descricao"),
+                    dat_lembrete=dat_lembrete,
+                )
+                lembrete = await criar_lembrete(dados_lembrete, id_usuario, db_lembrete)
+                await db_lembrete.commit()
+                confirmacao_lembrete = (
+                    f"\n\n[LEMBRETE_CRIADO: {lembrete.titulo} | "
+                    f"{dat_lembrete.strftime('%d/%m/%Y às %H:%M')}]"
+                )
+        except Exception as e:
+            logger.warning("Falha ao criar lembrete via chat: {}", str(e))
+
+    # 3. Extrair memoria em background com sessao propria (nao bloqueia o streaming)
     import asyncio
     from app.core.database import AsyncSessionLocal
 
@@ -123,8 +151,9 @@ async def enviar_mensagem_stream(
         conteudo, id_usuario, db, limite=20
     )
 
-    # 5. Montar mensagens para a IA
-    mensagens_ia = contexto_redis + [{"role": "user", "content": conteudo}]
+    # 5. Montar mensagens para a IA (incluir confirmacao de lembrete se houver)
+    conteudo_ia = conteudo + confirmacao_lembrete
+    mensagens_ia = contexto_redis + [{"role": "user", "content": conteudo_ia}]
 
     # 6. Streaming da resposta
     resposta_completa = ""

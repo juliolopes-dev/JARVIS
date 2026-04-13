@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { LoginPage } from '@/pages/LoginPage'
 import { ChatPage } from '@/pages/ChatPage'
+import { LembretesPage } from '@/pages/LembretesPage'
 import { MemoriaPage } from '@/pages/MemoriaPage'
 import { ConfigPage } from '@/pages/ConfigPage'
 import { Spinner } from '@/components/ui/Spinner'
@@ -50,6 +51,7 @@ export default function App() {
           <Route index element={<Navigate to="/chat" replace />} />
           <Route path="chat" element={<ChatPage />} />
           <Route path="chat/:idConversa" element={<ChatPage />} />
+          <Route path="lembretes" element={<LembretesPage />} />
           <Route path="memoria" element={<MemoriaPage />} />
           <Route path="config" element={<ConfigPage />} />
         </Route>

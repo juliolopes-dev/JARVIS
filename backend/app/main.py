@@ -8,11 +8,14 @@ from fastapi.staticfiles import StaticFiles
 from loguru import logger
 
 from app.core.config import settings
+from app.core.scheduler import scheduler
 from app.middleware.cors import configurar_cors
 from app.middleware.rate_limit import configurar_rate_limit
 from app.modules.auth.router import router as auth_router
 from app.modules.chat.router import router as chat_router
+from app.modules.lembretes.router import router as lembretes_router
 from app.modules.memoria.router import router as memoria_router
+from app.modules.notificacoes.router import router as notificacoes_router
 
 
 # ─── Loguru ──────────────────────────────────────────────────────────────────
@@ -53,7 +56,10 @@ def _configurar_loguru() -> None:
 async def lifespan(app: FastAPI):
     _configurar_loguru()
     logger.info("Jarvis iniciando... ambiente={}", settings.environment)
+    scheduler.start()
+    logger.info("APScheduler iniciado")
     yield
+    scheduler.shutdown()
     logger.info("Jarvis encerrando...")
 
 
@@ -90,6 +96,8 @@ async def handler_erro_global(request: Request, exc: Exception) -> JSONResponse:
 app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
 app.include_router(chat_router, prefix="/api/chat", tags=["chat"])
 app.include_router(memoria_router, prefix="/api/memoria", tags=["memoria"])
+app.include_router(lembretes_router, prefix="/api/lembretes", tags=["lembretes"])
+app.include_router(notificacoes_router, prefix="/api/notificacoes", tags=["notificacoes"])
 
 
 @app.get("/api/health", tags=["sistema"])
