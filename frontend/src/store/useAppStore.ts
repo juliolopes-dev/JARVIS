@@ -27,7 +27,7 @@ export const useAppStore = create<AppStore>((set) => ({
   conversaAtiva: null,
   setConversaAtiva: (conversaAtiva) => set({ conversaAtiva }),
 
-  sidebarAberta: true,
+  sidebarAberta: typeof window !== 'undefined' ? window.innerWidth >= 768 : true,
   setSidebarAberta: (sidebarAberta) => set({ sidebarAberta }),
   toggleSidebar: () => set((s) => ({ sidebarAberta: !s.sidebarAberta })),
 

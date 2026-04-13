@@ -123,7 +123,7 @@ export function ChatPage() {
   return (
     <div className="h-full flex flex-col">
       {/* Header mínimo */}
-      <div className="shrink-0 flex items-center px-6 h-14 border-b border-surface-border">
+      <div className="shrink-0 flex items-center px-4 md:px-6 h-14 border-b border-surface-border">
         <div className="flex items-center gap-2">
           <MessageSquare size={15} className="text-text-muted" />
           <span className="text-sm font-medium text-text-primary">
@@ -133,7 +133,7 @@ export function ChatPage() {
       </div>
 
       {/* Mensagens */}
-      <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
+      <div className="flex-1 overflow-y-auto px-3 md:px-6 py-4 md:py-6 space-y-4 md:space-y-6">
         {carregando ? (
           <div className="flex items-center justify-center h-full">
             <span className="text-sm text-text-muted">Carregando...</span>

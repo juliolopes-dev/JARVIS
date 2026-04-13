@@ -22,7 +22,12 @@ import { toast } from 'sonner'
 export function Sidebar() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { sidebarAberta, toggleSidebar, conversaAtiva, setConversaAtiva, usuario } = useAppStore()
+  const { sidebarAberta, toggleSidebar, setSidebarAberta, conversaAtiva, setConversaAtiva, usuario } = useAppStore()
+
+  function navegarEFecharMobile(path: string) {
+    if (window.innerWidth < 768) setSidebarAberta(false)
+    navigate(path)
+  }
   const [conversas, setConversas] = useState<Conversa[]>([])
   const [carregando, setCarregando] = useState(true)
   const [criando, setCriando] = useState(false)
@@ -101,14 +106,14 @@ export function Sidebar() {
         </button>
       </div>
 
-      {/* Nav principal */}
-      <nav className="px-2 pt-3 pb-2 shrink-0">
+      {/* Nav principal — oculta no mobile (usa BottomNav) */}
+      <nav className="hidden md:block px-2 pt-3 pb-2 shrink-0">
         {navItems.map(({ path, label, icon: Icon }) => {
           const ativo = location.pathname.startsWith(path)
           return (
             <button
               key={path}
-              onClick={() => navigate(path)}
+              onClick={() => navegarEFecharMobile(path)}
               className={cn(
                 'w-full flex items-center gap-2.5 h-8 px-3 rounded text-sm font-medium transition-colors cursor-pointer',
                 ativo
@@ -155,7 +160,7 @@ export function Sidebar() {
               key={c.id}
               onClick={() => {
                 setConversaAtiva(c)
-                navigate(`/chat/${c.id}`)
+                navegarEFecharMobile(`/chat/${c.id}`)
               }}
               className={cn(
                 'w-full group flex items-center justify-between gap-1 h-8 px-3 rounded text-xs',
@@ -207,14 +212,14 @@ export function Sidebar() {
   )
 }
 
-// Botão flutuante para reabrir sidebar quando fechada
+// Botão flutuante para reabrir sidebar quando fechada — só no desktop
 export function SidebarToggle() {
   const { sidebarAberta, toggleSidebar } = useAppStore()
   if (sidebarAberta) return null
   return (
     <button
       onClick={toggleSidebar}
-      className="fixed top-4 left-4 z-50 p-1.5 rounded border border-surface-border bg-surface-raised text-text-muted hover:text-text-primary hover:bg-surface-overlay transition-colors cursor-pointer"
+      className="hidden md:flex fixed top-4 left-4 z-50 p-1.5 rounded border border-surface-border bg-surface-raised text-text-muted hover:text-text-primary hover:bg-surface-overlay transition-colors cursor-pointer"
     >
       <PanelLeftOpen size={15} />
     </button>
