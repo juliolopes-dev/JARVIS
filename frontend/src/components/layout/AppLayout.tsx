@@ -25,8 +25,14 @@ function BottomNav() {
           <button
             key={path}
             onClick={() => {
-              setSidebarAberta(false)
-              navigate(path)
+              if (path === '/chat') {
+                // Chat abre a sidebar direto — é onde estão as conversas
+                navigate(path)
+                setSidebarAberta(true)
+              } else {
+                setSidebarAberta(false)
+                navigate(path)
+              }
             }}
             className={cn(
               'flex-1 flex flex-col items-center justify-center py-2 gap-0.5 cursor-pointer transition-colors',
