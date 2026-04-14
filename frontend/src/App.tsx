@@ -8,6 +8,7 @@ import { LembretesPage } from '@/pages/LembretesPage'
 import { MemoriaPage } from '@/pages/MemoriaPage'
 import { ConfigPage } from '@/pages/ConfigPage'
 import { TarefasPage } from '@/pages/TarefasPage'
+import { NotificacoesPage } from '@/pages/NotificacoesPage'
 import { Spinner } from '@/components/ui/Spinner'
 
 function RotaPrivada({ children }: { children: React.ReactNode }) {
@@ -53,6 +54,7 @@ export default function App() {
           <Route path="chat" element={<ChatPage />} />
           <Route path="chat/:idConversa" element={<ChatPage />} />
           <Route path="tarefas" element={<TarefasPage />} />
+          <Route path="notificacoes" element={<NotificacoesPage />} />
           <Route path="lembretes" element={<LembretesPage />} />
           <Route path="memoria" element={<MemoriaPage />} />
           <Route path="config" element={<ConfigPage />} />

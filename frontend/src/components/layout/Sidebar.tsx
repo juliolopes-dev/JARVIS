@@ -4,8 +4,10 @@ import {
   MessageSquare,
   Brain,
   Bell,
+  BellRing,
   CheckSquare,
   Settings,
+  Clock,
   Plus,
   Trash2,
   LogOut,
@@ -16,6 +18,7 @@ import { cn } from '@/utils/cn'
 import { useAppStore } from '@/store/useAppStore'
 import { chatService } from '@/services/chatService'
 import { authService } from '@/services/authService'
+import { api } from '@/services/api'
 import { formatarDataConversa } from '@/utils/formatDate'
 import type { Conversa } from '@/types'
 import { toast } from 'sonner'
@@ -23,7 +26,7 @@ import { toast } from 'sonner'
 export function Sidebar() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { sidebarAberta, toggleSidebar, setSidebarAberta, conversaAtiva, setConversaAtiva, usuario } = useAppStore()
+  const { sidebarAberta, toggleSidebar, setSidebarAberta, conversaAtiva, setConversaAtiva, usuario, naoLidas, setNaoLidas } = useAppStore()
 
   function navegarEFecharMobile(path: string) {
     if (window.innerWidth < 768) setSidebarAberta(false)
@@ -35,7 +38,20 @@ export function Sidebar() {
 
   useEffect(() => {
     carregarConversas()
+    carregarNaoLidas()
+    // Atualiza badge a cada 60s
+    const intervalo = setInterval(carregarNaoLidas, 60000)
+    return () => clearInterval(intervalo)
   }, [])
+
+  async function carregarNaoLidas() {
+    try {
+      const { data } = await api.get<{ total: number }>('/notificacoes/historico/nao-lidas')
+      setNaoLidas(data.total)
+    } catch {
+      // silencioso
+    }
+  }
 
   async function carregarConversas() {
     try {
@@ -77,11 +93,12 @@ export function Sidebar() {
   }
 
   const navItems = [
-    { path: '/chat', label: 'Chat', icon: MessageSquare },
-    { path: '/tarefas', label: 'Tarefas', icon: CheckSquare },
-    { path: '/lembretes', label: 'Lembretes', icon: Bell },
-    { path: '/memoria', label: 'Memória', icon: Brain },
-    { path: '/config', label: 'Configurações', icon: Settings },
+    { path: '/chat', label: 'Chat', icon: MessageSquare, badge: 0 },
+    { path: '/tarefas', label: 'Tarefas', icon: CheckSquare, badge: 0 },
+    { path: '/lembretes', label: 'Lembretes', icon: Clock, badge: 0 },
+    { path: '/notificacoes', label: 'Notificações', icon: Bell, badge: naoLidas },
+    { path: '/memoria', label: 'Memória', icon: Brain, badge: 0 },
+    { path: '/config', label: 'Configurações', icon: Settings, badge: 0 },
   ]
 
   return (
@@ -106,7 +123,7 @@ export function Sidebar() {
 
       {/* Nav principal — oculta no mobile (usa BottomNav) */}
       <nav className="hidden md:block px-2 pt-3 pb-2 shrink-0">
-        {navItems.map(({ path, label, icon: Icon }) => {
+        {navItems.map(({ path, label, icon: Icon, badge }) => {
           const ativo = location.pathname.startsWith(path)
           return (
             <button
@@ -120,7 +137,12 @@ export function Sidebar() {
               )}
             >
               <Icon size={15} className="shrink-0" />
-              {label}
+              <span className="flex-1 text-left">{label}</span>
+              {badge > 0 && (
+                <span className="text-2xs bg-accent text-white px-1.5 py-0.5 rounded-full font-medium tabular-nums leading-none">
+                  {badge}
+                </span>
+              )}
             </button>
           )
         })}

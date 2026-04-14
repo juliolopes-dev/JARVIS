@@ -52,6 +52,16 @@ async def _disparar_lembrete(id_lembrete: str, id_usuario: str) -> None:
                 "url": "/lembretes",
             }
 
+            # Salvar no historico
+            from app.modules.notificacoes.service import salvar_historico
+            await salvar_historico(
+                uuid.UUID(id_usuario),
+                "lembrete",
+                payload["title"],
+                lembrete.descricao or lembrete.titulo,
+                db,
+            )
+
             # Enviar push para cada dispositivo
             for sub in subscricoes:
                 sucesso = enviar_push(sub.endpoint, sub.chave_p256dh, sub.chave_auth, payload)

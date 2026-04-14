@@ -18,6 +18,10 @@ interface AppStore {
   // Streaming em progresso
   streamingAtivo: boolean
   setStreamingAtivo: (v: boolean) => void
+
+  // Notificacoes nao lidas
+  naoLidas: number
+  setNaoLidas: (n: number) => void
 }
 
 export const useAppStore = create<AppStore>((set) => ({
@@ -33,4 +37,7 @@ export const useAppStore = create<AppStore>((set) => ({
 
   streamingAtivo: false,
   setStreamingAtivo: (streamingAtivo) => set({ streamingAtivo }),
+
+  naoLidas: 0,
+  setNaoLidas: (naoLidas) => set({ naoLidas }),
 }))

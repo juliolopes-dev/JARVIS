@@ -8,19 +8,19 @@ import { useAppStore } from '@/store/useAppStore'
 function BottomNav() {
   const location = useLocation()
   const navigate = useNavigate()
-  const { setSidebarAberta } = useAppStore()
+  const { setSidebarAberta, naoLidas } = useAppStore()
 
   const items = [
-    { path: '/chat', icon: MessageSquare, label: 'Chat' },
-    { path: '/tarefas', icon: CheckSquare, label: 'Tarefas' },
-    { path: '/lembretes', icon: Bell, label: 'Lembretes' },
-    { path: '/memoria', icon: Brain, label: 'Memória' },
-    { path: '/config', icon: Settings, label: 'Config' },
+    { path: '/chat', icon: MessageSquare, label: 'Chat', badge: 0 },
+    { path: '/tarefas', icon: CheckSquare, label: 'Tarefas', badge: 0 },
+    { path: '/notificacoes', icon: Bell, label: 'Avisos', badge: naoLidas },
+    { path: '/memoria', icon: Brain, label: 'Memória', badge: 0 },
+    { path: '/config', icon: Settings, label: 'Config', badge: 0 },
   ]
 
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-surface border-t border-surface-border flex items-center">
-      {items.map(({ path, icon: Icon, label }) => {
+      {items.map(({ path, icon: Icon, label, badge }) => {
         const ativo = location.pathname.startsWith(path)
         return (
           <button
@@ -36,11 +36,18 @@ function BottomNav() {
               }
             }}
             className={cn(
-              'flex-1 flex flex-col items-center justify-center py-2 gap-0.5 cursor-pointer transition-colors',
+              'flex-1 flex flex-col items-center justify-center py-2 gap-0.5 cursor-pointer transition-colors relative',
               ativo ? 'text-accent' : 'text-text-faint'
             )}
           >
-            <Icon size={20} />
+            <div className="relative">
+              <Icon size={20} />
+              {badge > 0 && (
+                <span className="absolute -top-1 -right-1.5 min-w-[14px] h-3.5 px-0.5 bg-accent text-white text-2xs font-bold rounded-full flex items-center justify-center leading-none tabular-nums">
+                  {badge > 9 ? '9+' : badge}
+                </span>
+              )}
+            </div>
             <span className="text-2xs font-medium">{label}</span>
           </button>
         )

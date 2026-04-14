@@ -20,3 +20,22 @@ class SubscricaoPush(Base):
     criado_em: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+
+
+class HistoricoNotificacao(Base):
+    __tablename__ = "historico_notificacoes"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    id_usuario: Mapped[uuid.UUID] = mapped_column(ForeignKey("usuarios.id"), index=True)
+
+    # tipo: "lembrete", "briefing", "sistema"
+    tipo: Mapped[str] = mapped_column(String(30), index=True)
+    titulo: Mapped[str] = mapped_column(String(200))
+    corpo: Mapped[str | None] = mapped_column(Text)
+
+    flg_lida: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    dat_lida: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    criado_em: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), index=True
+    )

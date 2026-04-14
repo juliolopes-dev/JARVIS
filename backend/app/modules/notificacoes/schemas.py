@@ -1,3 +1,6 @@
+import uuid
+from datetime import datetime
+
 from pydantic import BaseModel
 
 
@@ -10,3 +13,15 @@ class SubscricaoCreate(BaseModel):
 
 class SubscricaoRemover(BaseModel):
     endpoint: str
+
+
+class HistoricoNotificacaoResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
+    id: uuid.UUID
+    tipo: str
+    titulo: str
+    corpo: str | None
+    flg_lida: bool
+    dat_lida: datetime | None
+    criado_em: datetime

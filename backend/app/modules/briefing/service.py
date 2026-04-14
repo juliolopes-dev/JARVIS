@@ -138,8 +138,12 @@ async def executar_briefing(id_usuario: str) -> None:
                 "title": "☀️ Briefing do dia",
                 "body": texto[:150] + ("..." if len(texto) > 150 else ""),
                 "texto_completo": texto,
-                "url": "/chat",
+                "url": "/notificacoes",
             }
+
+            # Salvar no historico antes de enviar
+            from app.modules.notificacoes.service import salvar_historico
+            await salvar_historico(uid, "briefing", "☀️ Briefing do dia", texto, db)
 
             for sub in subscricoes:
                 sucesso = enviar_push(sub.endpoint, sub.chave_p256dh, sub.chave_auth, payload)
