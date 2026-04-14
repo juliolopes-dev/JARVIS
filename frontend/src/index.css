@@ -3,9 +3,7 @@
 @tailwind utilities;
 
 @layer base {
-  /* ─── Tema: Arc Reactor (azul) — padrão ─────────────────────────────── */
-  :root,
-  :root[data-theme="arc"] {
+  :root {
     --color-accent: #3b82f6;         /* blue-500 */
     --color-accent-hover: #2563eb;   /* blue-600 */
     --color-accent-muted: #1d4ed8;   /* blue-700 */
@@ -13,19 +11,7 @@
     --color-accent-glow: rgba(59, 130, 246, 0.15);
     --color-accent-rgb: 59, 130, 246;
     --color-accent-soft: #a5b4fc;    /* indigo-300 — code/inline */
-    --color-surface-border: var(--color-surface-border); /* zinc-800 — borda padrão */
-  }
-
-  /* ─── Tema: Iron Man (vermelho + dourado) ───────────────────────────── */
-  :root[data-theme="ironman"] {
-    --color-accent: #dc2626;         /* red-600 — HUD vermelho */
-    --color-accent-hover: #b91c1c;   /* red-700 */
-    --color-accent-muted: #991b1b;   /* red-800 */
-    --color-accent-faint: #450a0a;   /* red-950 tint bg */
-    --color-accent-glow: rgba(245, 158, 11, 0.15); /* glow dourado */
-    --color-accent-rgb: 220, 38, 38;
-    --color-accent-soft: #fbbf24;    /* amber-400 — code/inline dourado */
-    --color-surface-border: #d97706; /* amber-600 — borda dourada Iron Man */
+    --color-surface-border: #27272a; /* zinc-800 */
   }
 
   * {
