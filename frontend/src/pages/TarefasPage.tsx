@@ -578,11 +578,10 @@ export function TarefasPage() {
             )}
             <Button
               size="sm"
-              onClick={() => setModalTarefa(true)}
-              disabled={listas.length === 0}
+              onClick={() => listas.length === 0 ? setModalLista(true) : setModalTarefa(true)}
             >
               <Plus size={13} className="mr-1" />
-              Nova tarefa
+              {listas.length === 0 ? 'Nova lista' : 'Nova tarefa'}
             </Button>
           </div>
         </div>
