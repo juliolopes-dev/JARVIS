@@ -147,8 +147,14 @@ async def processar_upload(
     ))
 
     await db.commit()
-    await db.refresh(livro)
-    return livro
+
+    # Recarregar com o relacionamento progresso (refresh nao carrega lazy relationships no async)
+    result = await db.execute(
+        select(Livro)
+        .where(Livro.id == livro.id)
+        .options(selectinload(Livro.progresso))
+    )
+    return result.scalar_one()
 
 
 async def listar_livros(id_usuario: uuid.UUID, db: AsyncSession) -> list[Livro]:
