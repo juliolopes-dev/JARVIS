@@ -25,7 +25,7 @@
     --color-accent-glow: rgba(245, 158, 11, 0.15); /* glow dourado */
     --color-accent-rgb: 220, 38, 38;
     --color-accent-soft: #fbbf24;    /* amber-400 — code/inline dourado */
-    --color-surface-border: #854d0e; /* amber-800 — borda dourada Iron Man */
+    --color-surface-border: #d97706; /* amber-600 — borda dourada Iron Man */
   }
 
   * {
