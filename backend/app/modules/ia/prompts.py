@@ -44,28 +44,34 @@ para esta conversa. Apenas o titulo, sem aspas, sem explicacoes.
 Mensagem: {mensagem}"""
 
 # Prompt para detectar e parsear pedido de tarefa/checklist
-TAREFA_PARSE_PROMPT = """Analise a mensagem abaixo e determine se o usuario esta pedindo para criar uma tarefa ou adicionar um item a uma lista de checklist.
+TAREFA_PARSE_PROMPT = """Voce e um classificador JSON. Analise a mensagem e diga se o usuario quer criar uma tarefa ou adicionar item a uma lista.
 
-Data e hora atual: {agora}
+Data/hora atual: {agora}
 
-Mensagem: {mensagem}
+Mensagem: "{mensagem}"
 
-Se for um pedido de tarefa, responda APENAS com JSON no formato:
-{{"eh_tarefa": true, "titulo": "titulo curto da tarefa", "descricao": "descricao opcional ou null", "prioridade": "baixa|media|alta|urgente", "dat_vencimento": "2026-04-14T09:00:00-03:00 ou null", "nome_lista": "nome da lista ou null"}}
+Exemplos que SAO tarefas:
+- "adiciona comprar leite na lista Compras" -> eh_tarefa: true
+- "cria uma tarefa de ligar pro banco" -> eh_tarefa: true
+- "coloca academia no checklist" -> eh_tarefa: true
+- "adiciona pagar conta na lista trabalho urgente" -> eh_tarefa: true, prioridade: urgente
 
-Se NAO for um pedido de tarefa, responda APENAS:
-{{"eh_tarefa": false}}
+Exemplos que NAO sao tarefas:
+- "qual e a capital do Brasil?" -> eh_tarefa: false
+- "me lembra amanha as 9h" -> eh_tarefa: false (isso e lembrete, nao tarefa)
+- "como voce esta?" -> eh_tarefa: false
 
-Regras:
-- Considerar como tarefa: "adiciona X na lista", "cria tarefa X", "lembra de fazer X", "coloca X no checklist", "preciso fazer X"
-- "amanha" = data de amanha
-- "hoje" = data de hoje
-- Se nao tiver data, use null para dat_vencimento
-- Prioridade padrao: "media"
-- Prioridade "urgente" ou "urgente": quando o usuario usar palavras como "urgente", "critico", "muito importante"
-- Titulo deve ser conciso (maximo 10 palavras)
-- nome_lista: o nome da lista se o usuario mencionar (ex: "compras", "trabalho"), senao null
-- Sempre use timezone -03:00 (America/Sao_Paulo) nas datas"""
+Se for tarefa, responda com este JSON exato:
+{{"eh_tarefa": true, "titulo": "texto da tarefa em ate 10 palavras", "descricao": null, "prioridade": "media", "dat_vencimento": null, "nome_lista": null}}
+
+Substitua os campos conforme a mensagem:
+- titulo: o que deve ser feito (obrigatorio)
+- prioridade: "baixa", "media", "alta" ou "urgente" (padrao: "media"; use "urgente" se usuario disser urgente/critico)
+- dat_vencimento: se mencionar data, use formato ISO 8601 com -03:00; caso contrario: null
+- nome_lista: nome da lista se mencionado; caso contrario: null
+
+Se NAO for tarefa, responda apenas:
+{{"eh_tarefa": false}}"""
 
 # Prompt para detectar e parsear pedido de lembrete
 LEMBRETE_PARSE_PROMPT = """Analise a mensagem abaixo e determine se o usuario esta pedindo para criar um lembrete.
