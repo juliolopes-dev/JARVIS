@@ -79,3 +79,41 @@ async def marcar_todas_lidas(
 ):
     total = await service.marcar_todas_lidas(usuario.id, db)
     return {"success": True, "marcadas": total}
+
+
+@router.post("/testar-push", summary="Envia push de teste para todos os dispositivos ativos")
+async def testar_push(
+    usuario: Usuario = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from sqlalchemy import select
+    from app.core.webpush import enviar_push
+    from app.modules.notificacoes.models import SubscricaoPush
+
+    result = await db.execute(
+        select(SubscricaoPush).where(
+            SubscricaoPush.id_usuario == usuario.id,
+            SubscricaoPush.flg_ativo == True,  # noqa: E712
+        )
+    )
+    subscricoes = result.scalars().all()
+
+    if not subscricoes:
+        return {"success": False, "erro": "Nenhuma subscricao ativa encontrada", "total": 0}
+
+    payload = {
+        "title": "🔔 Teste Jarvis",
+        "body": "Notificação push funcionando!",
+        "url": "/notificacoes",
+    }
+
+    resultados = []
+    for sub in subscricoes:
+        ok = enviar_push(sub.endpoint, sub.chave_p256dh, sub.chave_auth, payload)
+        if not ok:
+            sub.flg_ativo = False
+            db.add(sub)
+        resultados.append({"dispositivo": sub.dispositivo, "ok": ok})
+
+    await db.commit()
+    return {"success": True, "total_subscricoes": len(subscricoes), "resultados": resultados}

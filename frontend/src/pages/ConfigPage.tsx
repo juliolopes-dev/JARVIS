@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Settings, Lock, Sun, Bell, BellOff, BellRing } from 'lucide-react'
+import { api } from '@/services/api'
 import { toast } from 'sonner'
 import { authService } from '@/services/authService'
 import { configService, type Configuracao } from '@/services/configService'
@@ -21,6 +22,7 @@ export function ConfigPage() {
 
   // Push
   const { status: pushStatus, ativar, desativar } = usePushNotification()
+  const [testandoPush, setTestando] = useState(false)
 
   async function togglePush() {
     if (pushStatus === 'ativo') {
@@ -30,6 +32,22 @@ export function ConfigPage() {
       const ok = await ativar()
       if (ok) toast.success('Notificações ativadas!')
       else toast.error('Permissão negada. Ative nas configurações do browser.')
+    }
+  }
+
+  async function testarPush() {
+    setTestando(true)
+    try {
+      const { data } = await api.post('/notificacoes/testar-push')
+      if (data.total_subscricoes === 0) {
+        toast.error('Nenhuma subscrição ativa — ative as notificações primeiro')
+      } else {
+        toast.success(`Push enviado para ${data.total_subscricoes} dispositivo(s)`)
+      }
+    } catch {
+      toast.error('Erro ao enviar push de teste')
+    } finally {
+      setTestando(false)
     }
   }
 
@@ -141,7 +159,7 @@ export function ConfigPage() {
                     </p>
                   </div>
                 </div>
-                <div className="mt-4">
+                <div className="mt-4 flex items-center gap-2 flex-wrap">
                   <button
                     onClick={togglePush}
                     disabled={pushStatus === 'carregando' || pushStatus === 'bloqueado'}
@@ -164,6 +182,15 @@ export function ConfigPage() {
                       <><Bell size={14} /> Ativar notificações push</>
                     )}
                   </button>
+                  {pushStatus === 'ativo' && (
+                    <button
+                      onClick={testarPush}
+                      disabled={testandoPush}
+                      className="flex items-center gap-1.5 h-9 px-3 rounded text-xs font-medium border border-surface-border text-text-secondary hover:text-text-primary hover:bg-surface-overlay transition-colors cursor-pointer disabled:opacity-50"
+                    >
+                      {testandoPush ? 'Enviando...' : 'Testar agora'}
+                    </button>
+                  )}
                 </div>
               </div>
             </section>
