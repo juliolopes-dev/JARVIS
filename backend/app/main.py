@@ -17,6 +17,7 @@ from app.modules.lembretes.router import router as lembretes_router
 from app.modules.memoria.router import router as memoria_router
 from app.modules.notificacoes.router import router as notificacoes_router
 from app.modules.checklist.router import router as checklist_router
+from app.modules.config.router import router as config_router
 
 
 # ─── Loguru ──────────────────────────────────────────────────────────────────
@@ -59,6 +60,26 @@ async def lifespan(app: FastAPI):
     logger.info("Jarvis iniciando... ambiente={}", settings.environment)
     scheduler.start()
     logger.info("APScheduler iniciado")
+
+    # Agendar briefings de todos os usuarios com briefing ativo
+    try:
+        from app.core.database import AsyncSessionLocal
+        from app.modules.config.models import Configuracao
+        from app.modules.config.service import _horario_para_str
+        from app.modules.briefing.service import agendar_briefing
+        from sqlalchemy import select
+
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(
+                select(Configuracao).where(Configuracao.flg_briefing_diario == True)  # noqa: E712
+            )
+            configs = result.scalars().all()
+            for config in configs:
+                await agendar_briefing(config.id_usuario, _horario_para_str(config.horario_briefing))
+            logger.info("Briefings agendados | total={}", len(configs))
+    except Exception as e:
+        logger.warning("Falha ao agendar briefings no startup: {}", str(e))
+
     yield
     scheduler.shutdown()
     logger.info("Jarvis encerrando...")
@@ -100,6 +121,7 @@ app.include_router(memoria_router, prefix="/api/memoria", tags=["memoria"])
 app.include_router(lembretes_router, prefix="/api/lembretes", tags=["lembretes"])
 app.include_router(notificacoes_router, prefix="/api/notificacoes", tags=["notificacoes"])
 app.include_router(checklist_router, prefix="/api/checklist", tags=["checklist"])
+app.include_router(config_router, prefix="/api/config", tags=["config"])
 
 
 @app.get("/api/health", tags=["sistema"])
