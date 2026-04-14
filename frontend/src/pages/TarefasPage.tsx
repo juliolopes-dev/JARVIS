@@ -10,6 +10,7 @@ import {
   AlertCircle,
   ArrowUp,
   Minus,
+  Pencil,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { checklistService, type Lista, type Tarefa } from '@/services/checklistService'
@@ -55,6 +56,12 @@ function formatarVencimento(iso: string | null) {
     texto: d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
     atrasado: false,
   }
+}
+
+// Extrai "YYYY-MM-DD" de um ISO string para usar no input type=date
+function isoParaDate(iso: string | null): string {
+  if (!iso) return ''
+  return iso.slice(0, 10)
 }
 
 // ─── Tarefa Card ─────────────────────────────────────────────────────────────
@@ -121,40 +128,52 @@ function TarefaItem({
         </div>
       </div>
 
-      {/* Deletar */}
-      <button
-        onClick={(e) => {
-          e.stopPropagation()
-          onDeletar(tarefa.id)
-        }}
-        className="shrink-0 opacity-0 group-hover:opacity-100 p-1 rounded text-text-faint hover:text-red-400 transition-all cursor-pointer"
-        title="Deletar tarefa"
-      >
-        <Trash2 size={12} />
-      </button>
+      {/* Ações no hover */}
+      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-all">
+        <button
+          onClick={(e) => { e.stopPropagation(); onClick(tarefa) }}
+          className="p-1 rounded text-text-faint hover:text-text-primary transition-colors cursor-pointer"
+          title="Editar tarefa"
+        >
+          <Pencil size={12} />
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onDeletar(tarefa.id)
+          }}
+          className="p-1 rounded text-text-faint hover:text-red-400 transition-colors cursor-pointer"
+          title="Deletar tarefa"
+        >
+          <Trash2 size={12} />
+        </button>
+      </div>
     </div>
   )
 }
 
-// ─── Modal nova tarefa ────────────────────────────────────────────────────────
+// ─── Modal tarefa (criar e editar) ───────────────────────────────────────────
 
 function ModalTarefa({
   listas,
   idListaInicial,
+  tarefaEditando,
   onSalvar,
   onFechar,
 }: {
   listas: Lista[]
   idListaInicial: string | null
+  tarefaEditando: Tarefa | null
   onSalvar: (dados: { titulo: string; descricao: string; prioridade: string; id_lista: string | null; dat_vencimento: string }) => Promise<void>
   onFechar: () => void
 }) {
+  const editando = tarefaEditando !== null
   const [form, setForm] = useState({
-    titulo: '',
-    descricao: '',
-    prioridade: 'media',
-    id_lista: idListaInicial || (listas[0]?.id ?? ''),
-    dat_vencimento: '',
+    titulo: tarefaEditando?.titulo ?? '',
+    descricao: tarefaEditando?.descricao ?? '',
+    prioridade: tarefaEditando?.prioridade ?? 'media',
+    id_lista: tarefaEditando?.id_lista ?? idListaInicial ?? (listas[0]?.id ?? ''),
+    dat_vencimento: isoParaDate(tarefaEditando?.dat_vencimento ?? null),
   })
   const [salvando, setSalvando] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -187,7 +206,9 @@ function ModalTarefa({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
       <div className="bg-surface border border-surface-border rounded-lg p-5 w-full max-w-sm mx-4">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold text-text-primary">Nova tarefa</h2>
+          <h2 className="text-sm font-semibold text-text-primary">
+            {editando ? 'Editar tarefa' : 'Nova tarefa'}
+          </h2>
           <button onClick={onFechar} className="text-text-faint hover:text-text-primary cursor-pointer">
             <X size={15} />
           </button>
@@ -219,7 +240,7 @@ function ModalTarefa({
               <label className="text-xs text-text-secondary block mb-1">Prioridade</label>
               <select
                 value={form.prioridade}
-                onChange={(e) => setForm((f) => ({ ...f, prioridade: e.target.value }))}
+                onChange={(e) => setForm((f) => ({ ...f, prioridade: e.target.value as Tarefa['prioridade'] }))}
                 className="w-full h-9 px-2 rounded border border-surface-border bg-surface-raised text-text-primary text-sm focus:outline-none focus:border-accent transition-colors cursor-pointer"
               >
                 {PRIORIDADES.map((p) => (
@@ -258,7 +279,7 @@ function ModalTarefa({
             Cancelar
           </Button>
           <Button className="flex-1" onClick={handleSalvar} disabled={salvando}>
-            {salvando ? 'Salvando...' : 'Criar'}
+            {salvando ? 'Salvando...' : editando ? 'Salvar' : 'Criar'}
           </Button>
         </div>
       </div>
@@ -266,18 +287,21 @@ function ModalTarefa({
   )
 }
 
-// ─── Modal nova lista ─────────────────────────────────────────────────────────
+// ─── Modal lista (criar e editar) ─────────────────────────────────────────────
 
 function ModalLista({
+  listaEditando,
   onSalvar,
   onFechar,
 }: {
+  listaEditando: Lista | null
   onSalvar: (nome: string, cor: string) => Promise<void>
   onFechar: () => void
 }) {
   const CORES = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4']
-  const [nome, setNome] = useState('')
-  const [cor, setCor] = useState('#3b82f6')
+  const editando = listaEditando !== null
+  const [nome, setNome] = useState(listaEditando?.nome ?? '')
+  const [cor, setCor] = useState(listaEditando?.cor ?? '#3b82f6')
   const [salvando, setSalvando] = useState(false)
 
   async function handleSalvar() {
@@ -298,7 +322,9 @@ function ModalLista({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
       <div className="bg-surface border border-surface-border rounded-lg p-5 w-full max-w-xs mx-4">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold text-text-primary">Nova lista</h2>
+          <h2 className="text-sm font-semibold text-text-primary">
+            {editando ? 'Editar lista' : 'Nova lista'}
+          </h2>
           <button onClick={onFechar} className="text-text-faint hover:text-text-primary cursor-pointer">
             <X size={15} />
           </button>
@@ -339,7 +365,7 @@ function ModalLista({
             Cancelar
           </Button>
           <Button className="flex-1" onClick={handleSalvar} disabled={salvando}>
-            {salvando ? 'Criando...' : 'Criar'}
+            {salvando ? 'Salvando...' : editando ? 'Salvar' : 'Criar'}
           </Button>
         </div>
       </div>
@@ -355,7 +381,11 @@ export function TarefasPage() {
   const [listaSelecionada, setListaSelecionada] = useState<string | null>(null)
   const [carregandoListas, setCarregandoListas] = useState(true)
   const [carregandoTarefas, setCarregandoTarefas] = useState(false)
+
+  // Modais
+  const [tarefaEditando, setTarefaEditando] = useState<Tarefa | null>(null)
   const [modalTarefa, setModalTarefa] = useState(false)
+  const [listaEditando, setListaEditando] = useState<Lista | null>(null)
   const [modalLista, setModalLista] = useState(false)
 
   useEffect(() => {
@@ -372,7 +402,6 @@ export function TarefasPage() {
     try {
       const dados = await checklistService.listarListas()
       setListas(dados)
-      // Selecionar primeira lista automaticamente
       if (dados.length > 0 && listaSelecionada === null) {
         setListaSelecionada(dados[0].id)
       }
@@ -395,11 +424,30 @@ export function TarefasPage() {
     }
   }
 
-  async function criarLista(nome: string, cor: string) {
-    const lista = await checklistService.criarLista({ nome, cor })
-    setListas((prev) => [...prev, lista])
-    setListaSelecionada(lista.id)
-    toast.success('Lista criada!')
+  // ── Lista ─────────────────────────────────────────────────────────────────
+
+  function abrirNovaLista() {
+    setListaEditando(null)
+    setModalLista(true)
+  }
+
+  function abrirEditarLista(lista: Lista, e: React.MouseEvent) {
+    e.stopPropagation()
+    setListaEditando(lista)
+    setModalLista(true)
+  }
+
+  async function salvarLista(nome: string, cor: string) {
+    if (listaEditando) {
+      const atualizada = await checklistService.atualizarLista(listaEditando.id, { nome, cor })
+      setListas((prev) => prev.map((l) => (l.id === listaEditando.id ? { ...l, ...atualizada } : l)))
+      toast.success('Lista atualizada!')
+    } else {
+      const lista = await checklistService.criarLista({ nome, cor })
+      setListas((prev) => [...prev, lista])
+      setListaSelecionada(lista.id)
+      toast.success('Lista criada!')
+    }
   }
 
   async function deletarLista(id: string) {
@@ -417,35 +465,69 @@ export function TarefasPage() {
     }
   }
 
-  async function criarTarefa(dados: {
+  // ── Tarefa ────────────────────────────────────────────────────────────────
+
+  function abrirNovaTarefa() {
+    setTarefaEditando(null)
+    setModalTarefa(true)
+  }
+
+  function abrirEditarTarefa(tarefa: Tarefa) {
+    setTarefaEditando(tarefa)
+    setModalTarefa(true)
+  }
+
+  async function salvarTarefa(dados: {
     titulo: string
     descricao: string
     prioridade: string
     id_lista: string | null
     dat_vencimento: string
   }) {
-    try {
-      const payload: Parameters<typeof checklistService.criarTarefa>[0] = {
-        titulo: dados.titulo,
-        prioridade: dados.prioridade,
-        id_lista: dados.id_lista ?? listaSelecionada ?? undefined,
+    if (tarefaEditando) {
+      // Edição
+      try {
+        const payload: Parameters<typeof checklistService.atualizarTarefa>[1] = {
+          titulo: dados.titulo,
+          prioridade: dados.prioridade,
+          id_lista: dados.id_lista ?? undefined,
+          dat_vencimento: dados.dat_vencimento ? dados.dat_vencimento + 'T00:00:00-03:00' : null,
+        }
+        if (dados.descricao) payload.descricao = dados.descricao
+        const atualizada = await checklistService.atualizarTarefa(tarefaEditando.id, payload)
+        setTarefas((prev) => prev.map((t) => (t.id === tarefaEditando.id ? atualizada : t)))
+        // Se mudou de lista, remover da view atual
+        if (atualizada.id_lista !== listaSelecionada) {
+          setTarefas((prev) => prev.filter((t) => t.id !== tarefaEditando.id))
+        }
+        toast.success('Tarefa atualizada!')
+      } catch {
+        toast.error('Erro ao atualizar tarefa')
       }
-      if (dados.descricao) payload.descricao = dados.descricao
-      if (dados.dat_vencimento) payload.dat_vencimento = dados.dat_vencimento + 'T00:00:00-03:00'
+    } else {
+      // Criação
+      try {
+        const payload: Parameters<typeof checklistService.criarTarefa>[0] = {
+          titulo: dados.titulo,
+          prioridade: dados.prioridade,
+          id_lista: dados.id_lista ?? listaSelecionada ?? undefined,
+        }
+        if (dados.descricao) payload.descricao = dados.descricao
+        if (dados.dat_vencimento) payload.dat_vencimento = dados.dat_vencimento + 'T00:00:00-03:00'
 
-      const tarefa = await checklistService.criarTarefa(payload)
-      setTarefas((prev) => [tarefa, ...prev])
-      // Atualizar contagem na lista
-      setListas((prev) =>
-        prev.map((l) =>
-          l.id === (dados.id_lista ?? listaSelecionada)
-            ? { ...l, total_tarefas: l.total_tarefas + 1 }
-            : l
+        const tarefa = await checklistService.criarTarefa(payload)
+        setTarefas((prev) => [tarefa, ...prev])
+        setListas((prev) =>
+          prev.map((l) =>
+            l.id === (dados.id_lista ?? listaSelecionada)
+              ? { ...l, total_tarefas: l.total_tarefas + 1 }
+              : l
+          )
         )
-      )
-      toast.success('Tarefa criada!')
-    } catch {
-      toast.error('Erro ao criar tarefa')
+        toast.success('Tarefa criada!')
+      } catch {
+        toast.error('Erro ao criar tarefa')
+      }
     }
   }
 
@@ -453,7 +535,6 @@ export function TarefasPage() {
     try {
       const atualizada = await checklistService.concluirTarefa(id)
       setTarefas((prev) => prev.map((t) => (t.id === id ? atualizada : t)))
-      // Atualizar contagem de concluídas na lista
       setListas((prev) =>
         prev.map((l) => {
           if (l.id !== listaSelecionada) return l
@@ -500,7 +581,7 @@ export function TarefasPage() {
             <span className="text-xs font-semibold text-text-primary">Listas</span>
           </div>
           <button
-            onClick={() => setModalLista(true)}
+            onClick={abrirNovaLista}
             className="p-1 rounded text-text-faint hover:text-text-primary hover:bg-surface-overlay transition-colors cursor-pointer"
             title="Nova lista"
           >
@@ -532,13 +613,20 @@ export function TarefasPage() {
                   />
                   <span className="truncate text-xs">{lista.nome}</span>
                 </div>
-                <div className="flex items-center gap-1 shrink-0">
+                <div className="flex items-center gap-0.5 shrink-0">
                   {lista.total_tarefas > 0 && (
-                    <span className="text-2xs text-text-faint tabular-nums">
+                    <span className="text-2xs text-text-faint tabular-nums group-hover:hidden">
                       {lista.total_concluidas}/{lista.total_tarefas}
                     </span>
                   )}
-                  <ChevronRight size={10} className="text-text-faint opacity-0 group-hover:opacity-100" />
+                  <button
+                    onClick={(e) => abrirEditarLista(lista, e)}
+                    className="hidden group-hover:flex p-0.5 rounded text-text-faint hover:text-text-primary transition-colors cursor-pointer"
+                    title="Editar lista"
+                  >
+                    <Pencil size={10} />
+                  </button>
+                  <ChevronRight size={10} className="text-text-faint hidden group-hover:block" />
                 </div>
               </button>
             ))
@@ -578,7 +666,7 @@ export function TarefasPage() {
             )}
             <Button
               size="sm"
-              onClick={() => listas.length === 0 ? setModalLista(true) : setModalTarefa(true)}
+              onClick={() => listas.length === 0 ? abrirNovaLista() : abrirNovaTarefa()}
             >
               <Plus size={13} className="mr-1" />
               {listas.length === 0 ? 'Nova lista' : 'Nova tarefa'}
@@ -593,7 +681,7 @@ export function TarefasPage() {
               <CheckSquare size={32} className="text-text-faint mx-auto mb-3" />
               <p className="text-sm text-text-secondary">Crie uma lista para começar</p>
               <button
-                onClick={() => setModalLista(true)}
+                onClick={abrirNovaLista}
                 className="mt-3 text-xs text-accent hover:underline cursor-pointer"
               >
                 + Nova lista
@@ -621,7 +709,7 @@ export function TarefasPage() {
                         tarefa={t}
                         onConcluir={concluirTarefa}
                         onDeletar={deletarTarefa}
-                        onClick={() => {}}
+                        onClick={abrirEditarTarefa}
                       />
                     ))}
                   </div>
@@ -641,7 +729,7 @@ export function TarefasPage() {
                         tarefa={t}
                         onConcluir={concluirTarefa}
                         onDeletar={deletarTarefa}
-                        onClick={() => {}}
+                        onClick={abrirEditarTarefa}
                       />
                     ))}
                   </div>
@@ -657,14 +745,16 @@ export function TarefasPage() {
         <ModalTarefa
           listas={listas}
           idListaInicial={listaSelecionada}
-          onSalvar={criarTarefa}
-          onFechar={() => setModalTarefa(false)}
+          tarefaEditando={tarefaEditando}
+          onSalvar={salvarTarefa}
+          onFechar={() => { setModalTarefa(false); setTarefaEditando(null) }}
         />
       )}
       {modalLista && (
         <ModalLista
-          onSalvar={criarLista}
-          onFechar={() => setModalLista(false)}
+          listaEditando={listaEditando}
+          onSalvar={salvarLista}
+          onFechar={() => { setModalLista(false); setListaEditando(null) }}
         />
       )}
     </div>
