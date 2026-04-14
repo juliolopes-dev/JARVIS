@@ -164,6 +164,54 @@ async def enviar_mensagem_stream(
         except Exception as e:
             logger.warning("Falha ao criar tarefa via chat: {} | dados={}", str(e), tarefa_info)
 
+    # 2c. Detectar pedido de proximo trecho de livro
+    confirmacao_leitura = ""
+    conteudo_lower = conteudo.lower().strip()
+    _palavras_proximo = ("próximo trecho", "proximo trecho", "próximo capítulo", "próxima parte",
+                         "continuar lendo", "continua lendo", "continuar livro", "próximo livro",
+                         "avançar leitura", "avancar leitura", "próxima leitura")
+    _eh_pedido_leitura = any(conteudo_lower.startswith(p) or p in conteudo_lower for p in _palavras_proximo)
+
+    if _eh_pedido_leitura:
+        try:
+            from app.core.database import AsyncSessionLocal
+            from app.modules.livros.service import listar_livros, ler_proximo as livro_ler_proximo
+
+            async with AsyncSessionLocal() as db_livros:
+                livros_ativos = await listar_livros(id_usuario, db_livros)
+                # Pegar o livro em leitura (nao concluido, com progresso mais recente)
+                livro_atual = next(
+                    (
+                        l for l in livros_ativos
+                        if l.progresso and not l.progresso.flg_concluido
+                    ),
+                    None,
+                )
+                if livro_atual:
+                    resultado = await livro_ler_proximo(livro_atual.id, id_usuario, db_livros)
+                    if resultado:
+                        chunk = resultado['chunk']
+                        titulo = resultado['titulo_livro']
+                        pct = resultado['porcentagem']
+                        cap = f" — {chunk.capitulo}" if chunk.capitulo else ""
+
+                        confirmacao_leitura = (
+                            f"\n\n---\n"
+                            f"📖 **{titulo}{cap}** ({pct}%)\n\n"
+                            f"{chunk.conteudo}"
+                        )
+                        if resultado.get('resumo_capitulo'):
+                            confirmacao_leitura += f"\n\n---\n**Resumo do capítulo:**\n{resultado['resumo_capitulo']}"
+                        if resultado.get('perguntas_estudo'):
+                            perguntas = '\n'.join(resultado['perguntas_estudo'])
+                            confirmacao_leitura += f"\n\n**Perguntas de fixação:**\n{perguntas}"
+                        if resultado.get('livro_concluido'):
+                            confirmacao_leitura += "\n\n🎉 Você concluiu o livro! Salvei na sua memória."
+                else:
+                    confirmacao_leitura = "\n\n[Nenhum livro em leitura. Acesse Livros para adicionar um PDF.]"
+        except Exception as e:
+            logger.warning("Falha ao buscar proximo trecho via chat: {}", str(e))
+
     # 3. Extrair memoria em background com sessao propria (nao bloqueia o streaming)
     from app.core.database import AsyncSessionLocal
 
@@ -193,7 +241,7 @@ async def enviar_mensagem_stream(
     )
 
     # 5. Montar mensagens para a IA (incluir confirmacoes se houver)
-    conteudo_ia = conteudo + confirmacao_lembrete + confirmacao_tarefa
+    conteudo_ia = conteudo + confirmacao_lembrete + confirmacao_tarefa + confirmacao_leitura
     mensagens_ia = contexto_redis + [{"role": "user", "content": conteudo_ia}]
 
     # 6. Streaming da resposta

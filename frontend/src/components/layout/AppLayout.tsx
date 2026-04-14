@@ -1,6 +1,6 @@
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { Sidebar, SidebarToggle } from './Sidebar'
-import { MessageSquare, Bell, Brain, CheckSquare, Settings } from 'lucide-react'
+import { MessageSquare, Bell, Brain, CheckSquare, Settings, BookOpen } from 'lucide-react'
 import { cn } from '@/utils/cn'
 import { useAppStore } from '@/store/useAppStore'
 
@@ -13,8 +13,8 @@ function BottomNav() {
   const items = [
     { path: '/chat', icon: MessageSquare, label: 'Chat', badge: 0 },
     { path: '/tarefas', icon: CheckSquare, label: 'Tarefas', badge: 0 },
+    { path: '/livros', icon: BookOpen, label: 'Livros', badge: 0 },
     { path: '/notificacoes', icon: Bell, label: 'Avisos', badge: naoLidas },
-    { path: '/memoria', icon: Brain, label: 'Memória', badge: 0 },
     { path: '/config', icon: Settings, label: 'Config', badge: 0 },
   ]
 

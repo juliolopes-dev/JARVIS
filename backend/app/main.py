@@ -18,6 +18,7 @@ from app.modules.memoria.router import router as memoria_router
 from app.modules.notificacoes.router import router as notificacoes_router
 from app.modules.checklist.router import router as checklist_router
 from app.modules.config.router import router as config_router
+from app.modules.livros.router import router as livros_router
 
 
 # ─── Loguru ──────────────────────────────────────────────────────────────────
@@ -122,6 +123,7 @@ app.include_router(lembretes_router, prefix="/api/lembretes", tags=["lembretes"]
 app.include_router(notificacoes_router, prefix="/api/notificacoes", tags=["notificacoes"])
 app.include_router(checklist_router, prefix="/api/checklist", tags=["checklist"])
 app.include_router(config_router, prefix="/api/config", tags=["config"])
+app.include_router(livros_router, prefix="/api/livros", tags=["livros"])
 
 
 @app.get("/api/health", tags=["sistema"])
