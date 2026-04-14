@@ -132,14 +132,14 @@ export function ConfigPage() {
                 <button
                   onClick={() => setFlgBriefing((v) => !v)}
                   className={cn(
-                    'relative w-10 h-5 rounded-full transition-colors cursor-pointer',
+                    'relative inline-flex items-center w-11 h-6 rounded-full transition-colors cursor-pointer shrink-0',
                     flgBriefing ? 'bg-accent' : 'bg-surface-border'
                   )}
                 >
                   <span
                     className={cn(
-                      'absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform',
-                      flgBriefing ? 'translate-x-5' : 'translate-x-0.5'
+                      'inline-block w-4 h-4 rounded-full bg-white shadow transition-transform duration-200',
+                      flgBriefing ? 'translate-x-6' : 'translate-x-1'
                     )}
                   />
                 </button>
