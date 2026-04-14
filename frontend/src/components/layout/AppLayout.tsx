@@ -1,6 +1,6 @@
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { Sidebar, SidebarToggle } from './Sidebar'
-import { MessageSquare, Bell, Brain, Settings } from 'lucide-react'
+import { MessageSquare, Bell, Brain, CheckSquare, Settings } from 'lucide-react'
 import { cn } from '@/utils/cn'
 import { useAppStore } from '@/store/useAppStore'
 
@@ -12,6 +12,7 @@ function BottomNav() {
 
   const items = [
     { path: '/chat', icon: MessageSquare, label: 'Chat' },
+    { path: '/tarefas', icon: CheckSquare, label: 'Tarefas' },
     { path: '/lembretes', icon: Bell, label: 'Lembretes' },
     { path: '/memoria', icon: Brain, label: 'Memória' },
     { path: '/config', icon: Settings, label: 'Config' },

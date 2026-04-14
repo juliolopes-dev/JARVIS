@@ -10,7 +10,12 @@
       "Bash(python -c ':*)",
       "Bash(curl -s -X POST http://localhost:8000/api/auth/registrar -H 'Content-Type: application/json' -d '{\"email\":\"julio@gmail.com\",\"senha\":\"jarvis2026\",\"nome\":\"Julio\"}')",
       "Bash(python -m json.tool)",
-      "Bash(curl -v -X POST http://localhost:8000/api/chat/conversas/d14112ad-1c44-42f9-8353-7e3ee5372305/mensagens -H 'Content-Type: application/json' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI5ZGVjY2Q1NC0zMmFjLTQyZWQtOWUyZC0zM2Y1ODI3M2IyY2EiLCJleHAiOjE3NzYxMzQxNDAsInRpcG8iOiJhY2Nlc3MifQ.zp0niPU10jEO0LC1-O5HL6cRB4etLagFnUFCXtLDrwo' --data-raw '{\"conteudo\":\"Ola Jarvis\"}')"
+      "Bash(curl -v -X POST http://localhost:8000/api/chat/conversas/d14112ad-1c44-42f9-8353-7e3ee5372305/mensagens -H 'Content-Type: application/json' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI5ZGVjY2Q1NC0zMmFjLTQyZWQtOWUyZC0zM2Y1ODI3M2IyY2EiLCJleHAiOjE3NzYxMzQxNDAsInRpcG8iOiJhY2Nlc3MifQ.zp0niPU10jEO0LC1-O5HL6cRB4etLagFnUFCXtLDrwo' --data-raw '{\"conteudo\":\"Ola Jarvis\"}')",
+      "Read(//c/Users/julio/.claude/skills/python/**)",
+      "Read(//c/Users/julio/.claude/skills/design-engineer/**)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\julio\\.claude\\memory"
     ]
   }
 }

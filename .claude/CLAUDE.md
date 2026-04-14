@@ -3,7 +3,7 @@
 > Regras que valem APENAS para o Jarvis. As regras globais do NEXUS (em `C:/Users/julio/.claude/CLAUDE.md`) continuam valendo.
 
 ## Sobre o Projeto
-Assistente pessoal de IA (estilo Jarvis do Homem de Ferro) — 1 usuario, multi-dispositivo via PWA. Cerebro Claude + fallback GPT-4o mini, memoria persistente Mem0 + pgvector, tarefas autonomas APScheduler, notificacoes Web Push. Backend FastAPI, frontend React+Vite PWA.
+Assistente pessoal de IA (estilo Jarvis do Homem de Ferro) — 1 usuario, multi-dispositivo via PWA. Cerebro Claude + fallback GPT-4o, memoria persistente Mem0 + pgvector, tarefas autonomas APScheduler, notificacoes Web Push, transcricao de audio via Whisper. Backend FastAPI, frontend React+Vite PWA.
 
 ## Banco de Dados
 - **Localizacao:** VPS — EasyPanel (nunca local em producao)
@@ -21,7 +21,7 @@ Assistente pessoal de IA (estilo Jarvis do Homem de Ferro) — 1 usuario, multi-
 - **Backend:** Python 3.12 + FastAPI + SQLAlchemy 2.0 async + Alembic + PostgreSQL + pgvector + Redis
 - **Frontend:** React + Vite + TypeScript + Tailwind + PWA (`vite-plugin-pwa`)
 - **Auth:** JWT via `python-jose + passlib` — access token 10h, refresh token 30 dias. Usuario unico, sem OAuth social
-- **IA:** Claude API (cerebro principal) + GPT-4o mini (tarefas simples + fallback automatico) + Embeddings OpenAI text-embedding-3-small + Mem0 (auto-extracao de fatos)
+- **IA:** Claude API (cerebro principal) + GPT-4o (tarefas simples + fallback automatico) + Whisper-1 (transcricao de audio) + Embeddings OpenAI text-embedding-3-small + Mem0 (auto-extracao de fatos)
 - **Tarefas agendadas:** APScheduler com `SQLAlchemyJobStore` (jobs persistidos no PostgreSQL) — nunca usar JobStore em memoria
 - **Notificacoes:** Web Push Notifications via `pywebpush` + VAPID keys
 - **Logs:** Loguru com filter anti-leak (nunca loga headers, `.env`, chaves API, tokens JWT, senhas)
@@ -48,6 +48,10 @@ Assistente pessoal de IA (estilo Jarvis do Homem de Ferro) — 1 usuario, multi-
 - Mem0 e sincronizado com PostgreSQL via `id_mem0` — ao deletar memoria, remover dos dois lados
 - `tokens_entrada`/`tokens_saida` SEMPRE preenchidos na tabela `mensagens` — rastreabilidade de custo e obrigatoria
 - Embeddings OpenAI: usar `text-embedding-3-small` (1536 dim) — NAO usar o `large` (3072 dim) por custo
+- **Arquivos estaticos da raiz (PNG, sw.js, manifest) sao interceptados pelo SPA catch-all** — adicionar EXPLICITAMENTE na lista `_static_root_files` em `main.py` antes do `@app.get("/{full_path:path}")`. Sem isso, `/pwa-192x192.png` retorna `text/html` e Chrome rejeita o PWA
+- **VitePWA com `injectManifest` NAO copia PNGs automaticamente** — adicionar `pwa-192x192.png` e `pwa-512x512.png` no `includeAssets` do `vite.config.ts`. Sem isso os icones nao vao para o `dist`
+- **Layout mobile responsivo** — sidebar usa drawer fixo (`fixed inset-y-0 left-0 z-40`) no mobile e `md:flex flex-shrink-0` no desktop. Controle separado no AppLayout com dois wrappers distintos. Sidebar interna tem `width` fixo sempre — quem controla visibilidade e o wrapper
+- **Whisper-1** integrado em `app/modules/ia/service.py` → `POST /api/chat/transcrever` (multipart/form-data). Frontend usa `MediaRecorder` com `audio/webm;codecs=opus` (Chrome) ou `audio/mp4` (Safari)
 
 ## Rotas
 - **Prefixo obrigatorio:** `/api` — em TODAS as rotas
@@ -127,8 +131,9 @@ npx web-push generate-vapid-keys
 - **Exception handler global:** no `main.py` para capturar todo erro nao tratado e retornar no formato padrao sem stack trace em producao
 
 ## Regras Especificas do Jarvis
-- **Fallback de IA obrigatorio** — qualquer chamada ao Claude que falhe (5xx/timeout) deve tentar automaticamente GPT-4o mini no modulo `ia`
-- **Roteamento de modelos** — tarefas complexas (analise, raciocinio, memoria) vao para Claude; tarefas simples (titulo de conversa, classificacao) vao para GPT-4o mini
+- **Fallback de IA obrigatorio** — qualquer chamada ao Claude que falhe (5xx/timeout) deve tentar automaticamente GPT-4o no modulo `ia`
+- **Roteamento de modelos** — tarefas complexas (analise, raciocinio, memoria) vao para Claude; tarefas simples (titulo de conversa, classificacao, deteccao de lembrete) vao para GPT-4o
+- **Transcricao de audio** — `POST /api/chat/transcrever` (multipart/form-data, campo `audio`). Limite 25MB. Retorna `{ "texto": "..." }`. Frontend: `MediaRecorder` segura→grava, solta→transcreve→envia direto
 - **Memoria automatica** — toda mensagem do usuario passa pelo Mem0 para extracao automatica de fatos
 - **Nunca deletar memorias fisicamente** — sempre soft delete (`flg_ativo=false`). Memoria pessoal e dado critico
 - **System prompt do Jarvis** — fica em `app/modules/ia/prompts.py`, versionado no git. Iterar conforme uso real

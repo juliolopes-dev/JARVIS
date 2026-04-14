@@ -4,6 +4,7 @@ import {
   MessageSquare,
   Brain,
   Bell,
+  CheckSquare,
   Settings,
   Plus,
   Trash2,
@@ -77,6 +78,7 @@ export function Sidebar() {
 
   const navItems = [
     { path: '/chat', label: 'Chat', icon: MessageSquare },
+    { path: '/tarefas', label: 'Tarefas', icon: CheckSquare },
     { path: '/lembretes', label: 'Lembretes', icon: Bell },
     { path: '/memoria', label: 'Memória', icon: Brain },
     { path: '/config', label: 'Configurações', icon: Settings },

@@ -16,6 +16,7 @@ from app.modules.chat.router import router as chat_router
 from app.modules.lembretes.router import router as lembretes_router
 from app.modules.memoria.router import router as memoria_router
 from app.modules.notificacoes.router import router as notificacoes_router
+from app.modules.checklist.router import router as checklist_router
 
 
 # ─── Loguru ──────────────────────────────────────────────────────────────────
@@ -98,6 +99,7 @@ app.include_router(chat_router, prefix="/api/chat", tags=["chat"])
 app.include_router(memoria_router, prefix="/api/memoria", tags=["memoria"])
 app.include_router(lembretes_router, prefix="/api/lembretes", tags=["lembretes"])
 app.include_router(notificacoes_router, prefix="/api/notificacoes", tags=["notificacoes"])
+app.include_router(checklist_router, prefix="/api/checklist", tags=["checklist"])
 
 
 @app.get("/api/health", tags=["sistema"])

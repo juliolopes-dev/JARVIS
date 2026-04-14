@@ -15,7 +15,7 @@ from loguru import logger
 from openai import AsyncOpenAI
 
 from app.core.config import settings
-from app.modules.ia.prompts import LEMBRETE_PARSE_PROMPT, SYSTEM_PROMPT, TITULO_PROMPT
+from app.modules.ia.prompts import LEMBRETE_PARSE_PROMPT, SYSTEM_PROMPT, TAREFA_PARSE_PROMPT, TITULO_PROMPT
 
 # Clientes de IA (instanciados uma vez)
 _claude_client: anthropic.AsyncAnthropic | None = None
@@ -182,6 +182,46 @@ async def detectar_lembrete(mensagem: str) -> dict | None:
         return None
     except Exception as e:
         logger.warning("Falha ao detectar lembrete: {}", str(e))
+        return None
+
+
+async def detectar_tarefa(mensagem: str) -> dict | None:
+    """
+    Detecta se a mensagem e um pedido de criacao de tarefa e retorna os dados parseados.
+    Retorna None se nao for um pedido de tarefa.
+    """
+    import json
+    import re
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    try:
+        agora = datetime.now(ZoneInfo("America/Sao_Paulo")).strftime("%Y-%m-%dT%H:%M:%S-03:00")
+        cliente = get_openai()
+        response = await cliente.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {
+                    "role": "user",
+                    "content": TAREFA_PARSE_PROMPT.format(agora=agora, mensagem=mensagem[:500]),
+                }
+            ],
+            max_tokens=200,
+            temperature=0,
+            response_format={"type": "json_object"},
+        )
+        texto = response.choices[0].message.content.strip()
+        if not texto:
+            return None
+        match = re.search(r'\{.*\}', texto, re.DOTALL)
+        if not match:
+            return None
+        dados = json.loads(match.group())
+        if dados.get("eh_tarefa"):
+            return dados
+        return None
+    except Exception as e:
+        logger.warning("Falha ao detectar tarefa: {}", str(e))
         return None
 
 

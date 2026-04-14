@@ -27,7 +27,7 @@ Assistente pessoal inteligente inspirado no Jarvis do Homem de Ferro. Conversa p
 - **Logs:** Loguru (JSON em producao, colorido em dev) com rotacao automatica, filter para nao logar chaves API
 - **Seguranca:** CORS explicito (nunca `*`), Rate Limiting via slowapi (5 tent/min em `/api/auth/login`), Pydantic v2 validation em todos os schemas
 - **Cache/Contexto rapido:** Redis com AOF persistente — contexto da conversa atual
-- **IA:** Claude API (raciocinio), GPT-4o mini (simples/barato), Whisper (Fase 5), ElevenLabs (Fase 5), Claude Vision (Fase 5), Embeddings OpenAI text-embedding-3-small (1536 dim)
+- **IA:** Claude API (raciocinio), GPT-4o (simples/fallback), Whisper-1 (transcricao audio — JA ATIVO), ElevenLabs (Fase 5), Claude Vision (Fase 5), Embeddings OpenAI text-embedding-3-small (1536 dim)
 - **Memoria:** Mem0 (auto-extracao de fatos) + pgvector (busca semantica) + PostgreSQL (historico completo)
 - **Tarefas agendadas:** APScheduler com SQLAlchemyJobStore (jobs persistidos no banco)
 - **Notificacoes:** Web Push Notifications via pywebpush + VAPID keys
@@ -362,11 +362,11 @@ VAPID_CLAIMS_EMAIL=
 - **Web Push (VAPID)** — Notificacoes proativas no PWA (Fase 3)
 
 ## Roadmap
-- [x] **Fase 1 — Cerebro:** Setup, Database + Alembic, Redis, Auth JWT, Modulo IA (Claude + GPT-4o mini + fallback), Modulo Memoria (Mem0 + pgvector), Modulo Chat (SSE streaming), CORS + Rate Limiting, Healthcheck + version.json, Dockerfile + deploy EasyPanel, Loguru
-- [x] **Fase 2 — Interface:** Setup frontend Vite, Tela Login, Tela Chat (streaming + auto-scroll), Sidebar Conversas, Tela Memoria, Tela Config, PWA (SW + manifest), Markdown nas respostas, Design system dark
-- [ ] **Fase 3 — Autonomia:** APScheduler com SQLAlchemyJobStore, Briefing diario, Web Push (VAPID), Criar tarefas pelo chat via NLP, Monitoramento web, Gerenciamento de tarefas
+- [x] **Fase 1 — Cerebro:** Setup, Database + Alembic, Redis, Auth JWT, Modulo IA (Claude + GPT-4o + fallback), Modulo Memoria (Mem0 + pgvector), Modulo Chat (SSE streaming), CORS + Rate Limiting, Healthcheck + version.json, Dockerfile + deploy EasyPanel, Loguru
+- [x] **Fase 2 — Interface:** Setup frontend Vite, Tela Login, Tela Chat (streaming + auto-scroll), Sidebar Conversas, Tela Memoria, Tela Config, PWA instalavel (SW + manifest + icones), Markdown nas respostas, Design system dark, Layout responsivo mobile
+- [x] **Fase 3 parcial — Autonomia:** ✅ APScheduler com SQLAlchemyJobStore, ✅ Web Push VAPID (notificacoes no celular), ✅ Lembretes via chat (NLP) e manual (LembretesPage), ✅ Whisper-1 (audio→texto→envia), 🔲 Briefing diario, 🔲 Tarefas recorrentes por linguagem natural, 🔲 Gerenciamento de tarefas agendadas
 - [ ] **Fase 4 — Integracoes (FUTURO):** MCP Gmail, MCP Google Calendar, MCP Web Search
-- [ ] **Fase 5 — Voz e Visao (FUTURO):** Whisper (transcricao), ElevenLabs (voz), Claude Vision (imagens)
+- [ ] **Fase 5 — Voz (FUTURO):** ElevenLabs (voz), Claude Vision (imagens)
 
 ## Convencoes de Codigo
 - **Python:** `snake_case` (funcoes/variaveis), `PascalCase` (classes/modelos), `SCREAMING_SNAKE_CASE` (constantes)
@@ -448,12 +448,12 @@ VAPID_CLAIMS_EMAIL=
 - **`cod_usuario` e `cod_pessoa` sem default no banco** — criadas sequencias PostgreSQL manualmente (`usuarios_cod_usuario_seq`, `pessoas_cod_pessoa_seq`). Modelos usam `server_default="nextval('...')"` para que SQLAlchemy omita essas colunas no INSERT
 
 ## Ultima Sessao
-**2026-04-13** — Testes locais realizados. Stack funcionando end-to-end: registro, login, criacao de conversa, SSE streaming (Claude respondendo chunk a chunk). Dois bugs corrigidos: passlib incompativel com bcrypt 5.x (substituido por bcrypt direto) e cod_usuario sem sequence no banco (criadas sequencias PostgreSQL). Frontend build limpo (0 erros). Proximo: criar repositorio Git e fazer deploy no EasyPanel.
+**2026-04-13** — Sessao intensa de features e bugfixes pos-deploy. Jarvis em producao no EasyPanel. Implementados: lembretes via chat (NLP→APScheduler) e manual (LembretesPage), Web Push VAPID (notificacoes chegam no celular), transcricao de audio via Whisper-1 (microfone no chat), PWA instalavel (icones corrigidos), layout responsivo mobile (sidebar drawer + bottom nav + botao menu). Modelo fallback trocado de GPT-4o-mini para GPT-4o. URL producao: https://applications-jarvis.tbs25p.easypanel.host
 
 ## Proximos Passos
-1. **Criar repositorio Git** e subir para GitHub (pre-requisito para deploy EasyPanel)
-2. **Primeiro deploy no EasyPanel** — rodar `/deploy` checklist, configurar dominio + variaveis
-3. **Fase 3 (Autonomia)** — APScheduler, briefing diario, Web Push VAPID
+1. **Fase 3 restante** — briefing diario (APScheduler job) + tarefas por linguagem natural + gerenciamento de tarefas agendadas
+2. **Fase 4 (Integracoes FUTURO)** — MCP Gmail, Google Calendar, Web Search
+3. **Testar audio no iOS** — verificar se `audio/mp4` funciona no Safari/iPhone
 
 ## Historico de Mudancas
 | Data | Mudanca |
@@ -462,3 +462,7 @@ VAPID_CLAIMS_EMAIL=
 | 2026-04-12 | Fase 1 (Cerebro) 100% implementada — todos os modulos backend criados (auth, chat, memoria, ia), 9 tabelas no banco VPS, main.py com CORS+Loguru+rate limiting, Dockerfile multi-stage, /api/health respondendo OK |
 | 2026-04-13 | Fase 2 (Interface) 100% implementada — frontend React completo: Vite+TypeScript+Tailwind+PWA, design system dark (zinc-950 + blue-500), LoginPage, ChatPage com SSE streaming, MemoriaPage, ConfigPage, Sidebar com lista de conversas, service worker gerado, build limpo 491KB |
 | 2026-04-13 | Testes locais completos — 2 bugs corrigidos: passlib→bcrypt direto, sequences PostgreSQL para cod_usuario/cod_pessoa. Stack validada end-to-end: registro + login + chat SSE streaming funcionando |
+| 2026-04-13 | Deploy inicial no EasyPanel — repositorio GitHub criado, auto-deploy configurado, VAPID keys geradas, Dockerfile CMD corrigido (|| ao inves de &&) |
+| 2026-04-13 | Fase 3 parcial — Lembretes (tabela + APScheduler + CRUD + LembretesPage), Web Push VAPID (notificacoes funcionando no celular), deteccao de lembrete via chat (GPT-4o + json_object), Whisper-1 (transcricao de audio no chat) |
+| 2026-04-13 | PWA instalavel — icones PNG validos (192x192 + 512x512), fix SPA catch-all para servir PNGs, fix includeAssets no VitePWA |
+| 2026-04-13 | Layout responsivo mobile — sidebar drawer + overlay + bottom nav + botao menu no header do chat. Modelo fallback: GPT-4o-mini → GPT-4o |
