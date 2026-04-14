@@ -356,10 +356,16 @@ function ModalTarefa({
 
           <div>
             <label className="text-xs text-text-secondary block mb-1">Descrição (opcional)</label>
-            <Input
+            <textarea
               value={form.descricao}
-              onChange={(e) => setForm(f => ({ ...f, descricao: e.target.value }))}
+              onChange={(e) => {
+                setForm(f => ({ ...f, descricao: e.target.value }))
+                e.target.style.height = 'auto'
+                e.target.style.height = e.target.scrollHeight + 'px'
+              }}
               placeholder="Detalhes..."
+              rows={2}
+              className="w-full px-3 py-2 rounded border border-surface-border bg-surface-raised text-text-primary text-sm placeholder:text-text-faint focus:outline-none focus:border-accent transition-colors resize-none overflow-hidden min-h-[36px]"
             />
           </div>
 
