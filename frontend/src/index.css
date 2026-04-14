@@ -13,6 +13,7 @@
     --color-accent-glow: rgba(59, 130, 246, 0.15);
     --color-accent-rgb: 59, 130, 246;
     --color-accent-soft: #a5b4fc;    /* indigo-300 — code/inline */
+    --color-surface-border: var(--color-surface-border); /* zinc-800 — borda padrão */
   }
 
   /* ─── Tema: Iron Man (vermelho + dourado) ───────────────────────────── */
@@ -24,6 +25,7 @@
     --color-accent-glow: rgba(245, 158, 11, 0.15); /* glow dourado */
     --color-accent-rgb: 220, 38, 38;
     --color-accent-soft: #fbbf24;    /* amber-400 — code/inline dourado */
+    --color-surface-border: #854d0e; /* amber-800 — borda dourada Iron Man */
   }
 
   * {
@@ -125,14 +127,14 @@
   font-family: 'JetBrains Mono', monospace;
   font-size: 12px;
   background: #18181b;
-  border: 1px solid #27272a;
+  border: 1px solid var(--color-surface-border);
   border-radius: 4px;
   padding: 1px 5px;
   color: var(--color-accent-soft);
 }
 .prose-jarvis pre {
   background: #111113;
-  border: 1px solid #27272a;
+  border: 1px solid var(--color-surface-border);
   border-radius: 8px;
   padding: 16px;
   overflow-x: auto;
@@ -160,7 +162,7 @@
 .prose-jarvis th {
   text-align: left;
   padding: 8px 12px;
-  border-bottom: 1px solid #27272a;
+  border-bottom: 1px solid var(--color-surface-border);
   color: #a1a1aa;
   font-weight: 500;
 }
@@ -178,6 +180,6 @@
 .prose-jarvis strong { color: #fafafa; font-weight: 600; }
 .prose-jarvis hr {
   border: none;
-  border-top: 1px solid #27272a;
+  border-top: 1px solid var(--color-surface-border);
   margin: 16px 0;
 }

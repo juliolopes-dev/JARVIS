@@ -6,11 +6,11 @@ export default {
       colors: {
         // Zinc base — dark foundation
         surface: {
-          DEFAULT: '#09090b',  // zinc-950 — app bg
-          raised: '#111113',   // cards, panels
-          overlay: '#18181b',  // zinc-900 — popovers, hover
-          border: '#27272a',   // zinc-800 — borders
-          muted: '#3f3f46',    // zinc-700 — disabled, inactive
+          DEFAULT: '#09090b',                      // zinc-950 — app bg
+          raised: '#111113',                       // cards, panels
+          overlay: '#18181b',                      // zinc-900 — popovers, hover
+          border: 'var(--color-surface-border)',   // tematizável: zinc-800 (arc) / amber-800 (ironman)
+          muted: '#3f3f46',                        // zinc-700 — disabled, inactive
         },
         // Accent — tematizável via CSS vars (Arc Reactor / Iron Man)
         accent: {
