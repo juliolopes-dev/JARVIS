@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Settings, Lock, Sun } from 'lucide-react'
+import { Settings, Lock, Sun, Bell, BellOff, BellRing } from 'lucide-react'
 import { toast } from 'sonner'
 import { authService } from '@/services/authService'
 import { configService, type Configuracao } from '@/services/configService'
 import { useAppStore } from '@/store/useAppStore'
+import { usePushNotification } from '@/hooks/usePushNotification'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { cn } from '@/utils/cn'
@@ -17,6 +18,20 @@ export function ConfigPage() {
   const [confirmarSenha, setConfirmarSenha] = useState('')
   const [erroSenha, setErroSenha] = useState<string | null>(null)
   const [loadingSenha, setLoadingSenha] = useState(false)
+
+  // Push
+  const { status: pushStatus, ativar, desativar } = usePushNotification()
+
+  async function togglePush() {
+    if (pushStatus === 'ativo') {
+      await desativar()
+      toast.success('Notificações desativadas')
+    } else {
+      const ok = await ativar()
+      if (ok) toast.success('Notificações ativadas!')
+      else toast.error('Permissão negada. Ative nas configurações do browser.')
+    }
+  }
 
   // Configurações gerais
   const [config, setConfig] = useState<Configuracao | null>(null)
@@ -109,6 +124,50 @@ export function ConfigPage() {
               <Row label="ID" value={`#${usuario?.cod_usuario ?? '—'}`} mono />
             </div>
           </section>
+
+          {/* Notificações Push */}
+          {pushStatus !== 'nao-suportado' && (
+            <section>
+              <h2 className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-4">
+                Notificações
+              </h2>
+              <div className="rounded-lg border border-surface-border bg-surface-raised p-4">
+                <div className="flex items-start gap-3">
+                  <Bell size={15} className="text-accent mt-0.5 shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-text-primary">Notificações push</p>
+                    <p className="text-xs text-text-faint mt-0.5">
+                      Receba lembretes e o briefing diário mesmo com o app em segundo plano.
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <button
+                    onClick={togglePush}
+                    disabled={pushStatus === 'carregando' || pushStatus === 'bloqueado'}
+                    className={cn(
+                      'flex items-center gap-2 h-9 px-4 rounded text-sm font-medium border transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed',
+                      pushStatus === 'ativo'
+                        ? 'border-green-500/30 text-green-400 bg-green-500/10 hover:bg-green-500/20'
+                        : pushStatus === 'bloqueado'
+                        ? 'border-red-500/30 text-red-400 bg-red-500/10 cursor-not-allowed'
+                        : 'border-accent/30 text-accent bg-accent/10 hover:bg-accent/20'
+                    )}
+                  >
+                    {pushStatus === 'ativo' ? (
+                      <><BellRing size={14} /> Push ativo — toque para desativar</>
+                    ) : pushStatus === 'bloqueado' ? (
+                      <><BellOff size={14} /> Bloqueado — ative nas configurações do browser</>
+                    ) : pushStatus === 'carregando' ? (
+                      <><Bell size={14} /> Verificando...</>
+                    ) : (
+                      <><Bell size={14} /> Ativar notificações push</>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </section>
+          )}
 
           {/* Briefing Diário */}
           <section>

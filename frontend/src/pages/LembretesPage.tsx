@@ -1,12 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Bell, BellOff, BellRing, Plus, Trash2, X } from 'lucide-react'
+import { Bell, Plus, Trash2, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { lembretesService, type Lembrete } from '@/services/lembretesService'
-import { usePushNotification } from '@/hooks/usePushNotification'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Badge } from '@/components/ui/Badge'
-import { cn } from '@/utils/cn'
 
 function formatarDataLembrete(iso: string) {
   const d = new Date(iso)
@@ -31,8 +29,6 @@ export function LembretesPage() {
   const [modal, setModal] = useState(false)
   const [form, setForm] = useState({ titulo: '', descricao: '', dat_lembrete: '' })
   const [salvando, setSalvando] = useState(false)
-  const { status: pushStatus, ativar, desativar } = usePushNotification()
-
   useEffect(() => {
     carregarLembretes()
   }, [])
@@ -84,17 +80,6 @@ export function LembretesPage() {
     }
   }
 
-  async function togglePush() {
-    if (pushStatus === 'ativo') {
-      await desativar()
-      toast.success('Notificações desativadas')
-    } else {
-      const ok = await ativar()
-      if (ok) toast.success('Notificações ativadas!')
-      else toast.error('Permissão negada. Ative nas configurações do browser.')
-    }
-  }
-
   const pendentes = lembretes.filter((l) => l.sts_lembrete === 'pendente')
   const historico = lembretes.filter((l) => l.sts_lembrete !== 'pendente')
 
@@ -111,49 +96,10 @@ export function LembretesPage() {
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          {/* Botão Push */}
-          {pushStatus !== 'nao-suportado' && (
-            <button
-              onClick={togglePush}
-              disabled={pushStatus === 'carregando' || pushStatus === 'bloqueado'}
-              title={
-                pushStatus === 'bloqueado'
-                  ? 'Notificações bloqueadas no browser'
-                  : pushStatus === 'ativo'
-                  ? 'Desativar notificações push'
-                  : 'Ativar notificações push'
-              }
-              className={cn(
-                'flex items-center gap-1.5 h-8 px-3 rounded text-xs font-medium border transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed',
-                pushStatus === 'ativo'
-                  ? 'border-green-500/30 text-green-400 bg-green-500/10 hover:bg-green-500/20'
-                  : 'border-surface-border text-text-secondary hover:text-text-primary hover:bg-surface-overlay'
-              )}
-            >
-              {pushStatus === 'ativo' ? (
-                <>
-                  <BellRing size={13} />
-                  Push ativo
-                </>
-              ) : pushStatus === 'bloqueado' ? (
-                <>
-                  <BellOff size={13} />
-                  Bloqueado
-                </>
-              ) : (
-                <>
-                  <Bell size={13} />
-                  Ativar push
-                </>
-              )}
-            </button>
-          )}
-          <Button size="sm" onClick={() => setModal(true)}>
-            <Plus size={13} className="mr-1" />
-            Novo
-          </Button>
-        </div>
+        <Button size="sm" onClick={() => setModal(true)}>
+          <Plus size={13} className="mr-1" />
+          Novo
+        </Button>
       </div>
 
       {/* Conteúdo */}
