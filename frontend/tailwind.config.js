@@ -12,13 +12,13 @@ export default {
           border: '#27272a',   // zinc-800 — borders
           muted: '#3f3f46',    // zinc-700 — disabled, inactive
         },
-        // Accent — azul elétrico
+        // Accent — tematizável via CSS vars (Arc Reactor / Iron Man)
         accent: {
-          DEFAULT: '#3b82f6',  // blue-500
-          hover: '#2563eb',    // blue-600
-          muted: '#1d4ed8',    // blue-700
-          faint: '#1e3a5f',    // blue tint bg
-          glow: 'rgba(59, 130, 246, 0.15)',
+          DEFAULT: 'var(--color-accent)',
+          hover: 'var(--color-accent-hover)',
+          muted: 'var(--color-accent-muted)',
+          faint: 'var(--color-accent-faint)',
+          glow: 'var(--color-accent-glow)',
         },
         // Text hierarchy
         text: {
@@ -53,8 +53,8 @@ export default {
       boxShadow: {
         // Borders-only approach — dark UI
         border: '0 0 0 1px rgba(255,255,255,0.06)',
-        'border-accent': '0 0 0 1px rgba(59, 130, 246, 0.5)',
-        glow: '0 0 0 3px rgba(59, 130, 246, 0.15)',
+        'border-accent': '0 0 0 1px var(--color-accent)',
+        glow: '0 0 0 3px var(--color-accent-glow)',
         // Subtle elevation for floating elements
         float: '0 4px 16px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.06)',
       },

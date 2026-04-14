@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Settings, Lock, Sun, Bell, BellOff, BellRing } from 'lucide-react'
+import { Settings, Lock, Sun, Bell, BellOff, BellRing, Palette } from 'lucide-react'
 import { api } from '@/services/api'
 import { toast } from 'sonner'
 import { authService } from '@/services/authService'
@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/Button'
 import { cn } from '@/utils/cn'
 
 export function ConfigPage() {
-  const { usuario } = useAppStore()
+  const { usuario, tema, setTema } = useAppStore()
 
   // Senha
   const [senhaAtual, setSenhaAtual] = useState('')
@@ -140,6 +140,63 @@ export function ConfigPage() {
               <Row label="Nome" value={usuario?.nome ?? '—'} />
               <Row label="Email" value={usuario?.email ?? '—'} mono />
               <Row label="ID" value={`#${usuario?.cod_usuario ?? '—'}`} mono />
+            </div>
+          </section>
+
+          {/* Tema */}
+          <section>
+            <h2 className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-4">
+              Tema
+            </h2>
+            <div className="rounded-lg border border-surface-border bg-surface-raised p-4">
+              <div className="flex items-start gap-3 mb-4">
+                <Palette size={15} className="text-accent mt-0.5 shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-text-primary">Esquema de cores</p>
+                  <p className="text-xs text-text-faint mt-0.5">
+                    Escolha entre o azul do Arc Reactor ou o vermelho e dourado do Homem de Ferro.
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => setTema('arc')}
+                  className={cn(
+                    'rounded-lg border p-3 text-left transition-colors cursor-pointer',
+                    tema === 'arc'
+                      ? 'border-blue-500/50 bg-blue-500/10'
+                      : 'border-surface-border bg-surface hover:bg-surface-overlay'
+                  )}
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="flex gap-1">
+                      <span className="w-4 h-4 rounded-full bg-[#3b82f6] ring-1 ring-white/10" />
+                      <span className="w-4 h-4 rounded-full bg-[#1e3a5f] ring-1 ring-white/10" />
+                    </div>
+                    <span className="text-sm font-medium text-text-primary">Arc Reactor</span>
+                  </div>
+                  <p className="text-xs text-text-faint">Azul HUD — padrão</p>
+                </button>
+
+                <button
+                  onClick={() => setTema('ironman')}
+                  className={cn(
+                    'rounded-lg border p-3 text-left transition-colors cursor-pointer',
+                    tema === 'ironman'
+                      ? 'border-red-500/50 bg-red-500/10'
+                      : 'border-surface-border bg-surface hover:bg-surface-overlay'
+                  )}
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="flex gap-1">
+                      <span className="w-4 h-4 rounded-full bg-[#dc2626] ring-1 ring-white/10" />
+                      <span className="w-4 h-4 rounded-full bg-[#fbbf24] ring-1 ring-white/10" />
+                    </div>
+                    <span className="text-sm font-medium text-text-primary">Homem de Ferro</span>
+                  </div>
+                  <p className="text-xs text-text-faint">Vermelho + dourado</p>
+                </button>
+              </div>
             </div>
           </section>
 

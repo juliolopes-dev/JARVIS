@@ -18,8 +18,8 @@ export function MensagemItem({ mensagem, streaming = false }: MensagemItemProps)
           <div
             className="px-4 py-3 rounded-[10px_10px_4px_10px] text-md text-text-primary"
             style={{
-              background: '#1e3a5f',
-              border: '1px solid rgba(59, 130, 246, 0.2)',
+              background: 'var(--color-accent-faint)',
+              border: '1px solid rgba(var(--color-accent-rgb), 0.25)',
             }}
           >
             <p className="whitespace-pre-wrap leading-relaxed">{mensagem.conteudo}</p>

@@ -3,6 +3,29 @@
 @tailwind utilities;
 
 @layer base {
+  /* ─── Tema: Arc Reactor (azul) — padrão ─────────────────────────────── */
+  :root,
+  :root[data-theme="arc"] {
+    --color-accent: #3b82f6;         /* blue-500 */
+    --color-accent-hover: #2563eb;   /* blue-600 */
+    --color-accent-muted: #1d4ed8;   /* blue-700 */
+    --color-accent-faint: #1e3a5f;   /* blue tint bg */
+    --color-accent-glow: rgba(59, 130, 246, 0.15);
+    --color-accent-rgb: 59, 130, 246;
+    --color-accent-soft: #a5b4fc;    /* indigo-300 — code/inline */
+  }
+
+  /* ─── Tema: Iron Man (vermelho + dourado) ───────────────────────────── */
+  :root[data-theme="ironman"] {
+    --color-accent: #dc2626;         /* red-600 — HUD vermelho */
+    --color-accent-hover: #b91c1c;   /* red-700 */
+    --color-accent-muted: #991b1b;   /* red-800 */
+    --color-accent-faint: #450a0a;   /* red-950 tint bg */
+    --color-accent-glow: rgba(245, 158, 11, 0.15); /* glow dourado */
+    --color-accent-rgb: 220, 38, 38;
+    --color-accent-soft: #fbbf24;    /* amber-400 — code/inline dourado */
+  }
+
   * {
     box-sizing: border-box;
     -webkit-font-smoothing: antialiased;
@@ -39,14 +62,14 @@
 
   /* Selection */
   ::selection {
-    background: rgba(59, 130, 246, 0.25);
+    background: rgba(var(--color-accent-rgb), 0.25);
     color: #fafafa;
   }
 
   /* Focus outline global */
   :focus-visible {
     outline: none;
-    box-shadow: 0 0 0 2px #09090b, 0 0 0 4px rgba(59, 130, 246, 0.5);
+    box-shadow: 0 0 0 2px #09090b, 0 0 0 4px rgba(var(--color-accent-rgb), 0.5);
   }
 }
 
@@ -56,7 +79,7 @@
     content: '▋';
     display: inline-block;
     animation: cursorBlink 1s step-end infinite;
-    color: #3b82f6;
+    color: var(--color-accent);
     margin-left: 1px;
   }
 
@@ -105,7 +128,7 @@
   border: 1px solid #27272a;
   border-radius: 4px;
   padding: 1px 5px;
-  color: #a5b4fc;
+  color: var(--color-accent-soft);
 }
 .prose-jarvis pre {
   background: #111113;
@@ -123,7 +146,7 @@
   color: #e4e4e7;
 }
 .prose-jarvis blockquote {
-  border-left: 2px solid #3b82f6;
+  border-left: 2px solid var(--color-accent);
   padding-left: 12px;
   color: #a1a1aa;
   margin: 12px 0;
@@ -146,7 +169,7 @@
   border-bottom: 1px solid rgba(255,255,255,0.04);
 }
 .prose-jarvis a {
-  color: #3b82f6;
+  color: var(--color-accent);
   text-decoration: none;
 }
 .prose-jarvis a:hover {
