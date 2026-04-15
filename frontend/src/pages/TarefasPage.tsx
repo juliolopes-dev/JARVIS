@@ -14,6 +14,7 @@ import {
   Calendar,
   Tag,
   AlignLeft,
+  ArrowLeft,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { checklistService, type Lista, type Tarefa } from '@/services/checklistService'
@@ -149,6 +150,7 @@ function PainelDetalhes({
   onEditar,
   onConcluir,
   onDeletar,
+  mobile = false,
 }: {
   tarefa: Tarefa
   listas: Lista[]
@@ -156,10 +158,99 @@ function PainelDetalhes({
   onEditar: (tarefa: Tarefa) => void
   onConcluir: (id: string) => void
   onDeletar: (id: string) => void
+  mobile?: boolean
 }) {
   const venc = formatarVencimento(tarefa.dat_vencimento)
   const lista = listas.find(l => l.id === tarefa.id_lista)
   const prio = PRIORIDADES.find(p => p.valor === tarefa.prioridade)
+
+  if (mobile) {
+    return (
+      <>
+        {/* Overlay */}
+        <div
+          className="fixed inset-0 z-40 bg-black/50"
+          onClick={onFechar}
+        />
+        {/* Bottom sheet */}
+        <div className="fixed bottom-0 left-0 right-0 z-50 bg-surface border-t border-surface-border rounded-t-xl flex flex-col max-h-[75vh]">
+          {/* Handle */}
+          <div className="flex justify-center pt-3 pb-1 shrink-0">
+            <div className="w-8 h-1 rounded-full bg-surface-muted" />
+          </div>
+          {/* Header */}
+          <div className="flex items-center justify-between px-4 py-3 border-b border-surface-border shrink-0">
+            <span className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Detalhes</span>
+            <button onClick={onFechar} className="p-1 rounded text-text-faint hover:text-text-primary cursor-pointer">
+              <X size={14} />
+            </button>
+          </div>
+          {/* Conteúdo */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-5">
+            <div className="flex items-start gap-2">
+              <button onClick={() => onConcluir(tarefa.id)} className="shrink-0 mt-0.5 text-text-faint hover:text-accent transition-colors cursor-pointer">
+                {tarefa.flg_concluida ? <CheckCircle2 size={18} className="text-accent" /> : <Circle size={18} />}
+              </button>
+              <h2 className={cn('text-sm font-semibold text-text-primary leading-snug', tarefa.flg_concluida && 'line-through text-text-faint')}>
+                {tarefa.titulo}
+              </h2>
+            </div>
+            {tarefa.descricao && (
+              <div>
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <AlignLeft size={12} className="text-text-faint" />
+                  <span className="text-2xs text-text-faint uppercase tracking-wider font-medium">Descrição</span>
+                </div>
+                <p className="text-sm text-text-secondary leading-relaxed whitespace-pre-line">{tarefa.descricao}</p>
+              </div>
+            )}
+            <div>
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <PrioridadeIcon prioridade={tarefa.prioridade} size={12} />
+                <span className="text-2xs text-text-faint uppercase tracking-wider font-medium">Prioridade</span>
+              </div>
+              <span className={cn('text-sm font-medium', prio?.cor ?? 'text-text-secondary')}>{prio?.label ?? tarefa.prioridade}</span>
+            </div>
+            {lista && (
+              <div>
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <Tag size={12} className="text-text-faint" />
+                  <span className="text-2xs text-text-faint uppercase tracking-wider font-medium">Lista</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: lista.cor }} />
+                  <span className="text-sm text-text-secondary">{lista.nome}</span>
+                </div>
+              </div>
+            )}
+            {venc && (
+              <div>
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <Calendar size={12} className="text-text-faint" />
+                  <span className="text-2xs text-text-faint uppercase tracking-wider font-medium">Vencimento</span>
+                </div>
+                <span className={cn('text-sm font-medium', venc.atrasado ? 'text-red-400' : 'text-text-secondary')}>
+                  {venc.atrasado && '⚠ '}{venc.texto}{venc.atrasado && ' — atrasada'}
+                </span>
+              </div>
+            )}
+          </div>
+          {/* Ações */}
+          <div className="shrink-0 border-t border-surface-border p-4 flex gap-2 pb-8">
+            <Button size="sm" className="flex-1" onClick={() => { onEditar(tarefa); onFechar() }}>
+              <Pencil size={12} className="mr-1.5" />Editar
+            </Button>
+            <button
+              onClick={() => { onDeletar(tarefa.id); onFechar() }}
+              className="flex items-center gap-1.5 h-8 px-3 rounded text-xs font-medium border border-surface-border text-text-faint hover:text-red-400 hover:border-red-500/30 hover:bg-red-500/10 transition-colors cursor-pointer"
+            >
+              <Trash2 size={12} />Deletar
+            </button>
+          </div>
+        </div>
+      </>
+    )
+  }
 
   return (
     <div className="w-[280px] shrink-0 border-l border-surface-border flex flex-col bg-surface">
@@ -505,6 +596,9 @@ export function TarefasPage() {
   const [carregandoListas, setCarregandoListas] = useState(true)
   const [carregandoTarefas, setCarregandoTarefas] = useState(false)
 
+  // Mobile: controla qual "tela" está visível
+  const [vistaAtiva, setVistaAtiva] = useState<'listas' | 'tarefas'>('listas')
+
   // Painel de detalhes
   const [tarefaDetalhes, setTarefaDetalhes] = useState<Tarefa | null>(null)
 
@@ -683,8 +777,13 @@ export function TarefasPage() {
 
   return (
     <div className="flex h-full">
-      {/* ── Coluna de listas ── */}
-      <div className="w-[200px] shrink-0 border-r border-surface-border flex flex-col bg-surface">
+
+      {/* ── Coluna de listas — desktop sempre visível, mobile só na vista 'listas' ── */}
+      <div className={cn(
+        'shrink-0 border-r border-surface-border flex flex-col bg-surface',
+        'md:w-[200px] md:flex',                          // desktop: sempre visível
+        vistaAtiva === 'listas' ? 'flex w-full' : 'hidden md:flex'  // mobile: tela cheia ou oculta
+      )}>
         <div className="flex items-center justify-between px-3 h-14 border-b border-surface-border shrink-0">
           <div className="flex items-center gap-2">
             <CheckSquare size={14} className="text-accent" />
@@ -707,9 +806,9 @@ export function TarefasPage() {
           ) : listas.map(lista => (
             <button
               key={lista.id}
-              onClick={() => { setListaSelecionada(lista.id); setTarefaDetalhes(null) }}
+              onClick={() => { setListaSelecionada(lista.id); setTarefaDetalhes(null); setVistaAtiva('tarefas') }}
               className={cn(
-                'w-full group flex items-center justify-between gap-1 px-3 py-2 text-sm transition-colors cursor-pointer',
+                'w-full group flex items-center justify-between gap-1 px-3 py-2.5 md:py-2 text-sm transition-colors cursor-pointer',
                 listaSelecionada === lista.id
                   ? 'bg-surface-overlay text-text-primary'
                   : 'text-text-secondary hover:bg-white/[0.04] hover:text-text-primary'
@@ -719,31 +818,41 @@ export function TarefasPage() {
                 <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: lista.cor }} />
                 <span className="truncate text-xs">{lista.nome}</span>
               </div>
-              <div className="flex items-center gap-0.5 shrink-0">
+              <div className="flex items-center gap-1.5 shrink-0">
                 {lista.total_tarefas > 0 && (
-                  <span className="text-2xs text-text-faint tabular-nums group-hover:hidden">
+                  <span className="text-2xs text-text-faint tabular-nums md:group-hover:hidden">
                     {lista.total_concluidas}/{lista.total_tarefas}
                   </span>
                 )}
                 <button
                   onClick={(e) => abrirEditarLista(lista, e)}
-                  className="hidden group-hover:flex p-0.5 rounded text-text-faint hover:text-text-primary transition-colors cursor-pointer"
+                  className="hidden md:group-hover:flex p-0.5 rounded text-text-faint hover:text-text-primary transition-colors cursor-pointer"
                   title="Editar lista"
                 >
                   <Pencil size={10} />
                 </button>
-                <ChevronRight size={10} className="text-text-faint hidden group-hover:block" />
+                <ChevronRight size={12} className="text-text-faint md:hidden" />
               </div>
             </button>
           ))}
         </div>
       </div>
 
-      {/* ── Coluna de tarefas ── */}
-      <div className="flex-1 min-w-0 flex flex-col">
+      {/* ── Coluna de tarefas — desktop sempre visível, mobile só na vista 'tarefas' ── */}
+      <div className={cn(
+        'flex-1 min-w-0 flex flex-col',
+        vistaAtiva === 'tarefas' ? 'flex' : 'hidden md:flex'
+      )}>
         {/* Header */}
-        <div className="flex items-center justify-between px-6 h-14 border-b border-surface-border shrink-0">
+        <div className="flex items-center justify-between px-4 md:px-6 h-14 border-b border-surface-border shrink-0">
           <div className="flex items-center gap-2">
+            {/* Botão voltar — só mobile */}
+            <button
+              onClick={() => { setVistaAtiva('listas'); setTarefaDetalhes(null) }}
+              className="md:hidden p-1 -ml-1 rounded text-text-faint hover:text-text-primary transition-colors cursor-pointer"
+            >
+              <ArrowLeft size={16} />
+            </button>
             {listaSel && (
               <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: listaSel.cor }} />
             )}
@@ -774,7 +883,7 @@ export function TarefasPage() {
         </div>
 
         {/* Lista de tarefas */}
-        <div className="flex-1 overflow-y-auto px-6 py-4">
+        <div className="flex-1 overflow-y-auto px-4 md:px-6 py-4">
           {!listaSelecionada ? (
             <div className="text-center py-16">
               <CheckSquare size={32} className="text-text-faint mx-auto mb-3" />
@@ -835,16 +944,33 @@ export function TarefasPage() {
         </div>
       </div>
 
-      {/* ── Painel de detalhes ── */}
+      {/* ── Painel de detalhes — desktop: coluna lateral | mobile: bottom sheet ── */}
       {tarefaDetalhes && (
-        <PainelDetalhes
-          tarefa={tarefaDetalhes}
-          listas={listas}
-          onFechar={() => setTarefaDetalhes(null)}
-          onEditar={abrirEditarTarefa}
-          onConcluir={concluirTarefa}
-          onDeletar={deletarTarefa}
-        />
+        <>
+          {/* Desktop */}
+          <div className="hidden md:block">
+            <PainelDetalhes
+              tarefa={tarefaDetalhes}
+              listas={listas}
+              onFechar={() => setTarefaDetalhes(null)}
+              onEditar={abrirEditarTarefa}
+              onConcluir={concluirTarefa}
+              onDeletar={deletarTarefa}
+            />
+          </div>
+          {/* Mobile */}
+          <div className="md:hidden">
+            <PainelDetalhes
+              tarefa={tarefaDetalhes}
+              listas={listas}
+              onFechar={() => setTarefaDetalhes(null)}
+              onEditar={abrirEditarTarefa}
+              onConcluir={concluirTarefa}
+              onDeletar={deletarTarefa}
+              mobile
+            />
+          </div>
+        </>
       )}
 
       {/* Modais */}
