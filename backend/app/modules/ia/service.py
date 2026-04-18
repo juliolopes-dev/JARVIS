@@ -2,15 +2,12 @@
 Modulo IA — Orquestrador de modelos de linguagem.
 
 Regras:
-- Claude (claude-sonnet-4-6): raciocinio, conversas complexas, contexto longo
-- GPT-4o mini: tarefas simples (titulo de conversa, classificacao) e fallback do Claude
-- Fallback automatico: se Claude falhar (5xx/timeout), tenta GPT-4o mini automaticamente
+- GPT-4o: cerebro principal do Jarvis (conversas, raciocinio, titulo)
+- Parsers NLP (lembrete, tarefa, recorrente): GPT-4o com response_format JSON
 """
 
 from collections.abc import AsyncGenerator
 
-import anthropic
-import httpx
 from loguru import logger
 from openai import AsyncOpenAI
 
@@ -23,16 +20,8 @@ from app.modules.ia.prompts import (
     TITULO_PROMPT,
 )
 
-# Clientes de IA (instanciados uma vez)
-_claude_client: anthropic.AsyncAnthropic | None = None
+# Cliente de IA (instanciado uma vez)
 _openai_client: AsyncOpenAI | None = None
-
-
-def get_claude() -> anthropic.AsyncAnthropic:
-    global _claude_client
-    if _claude_client is None:
-        _claude_client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
-    return _claude_client
 
 
 def get_openai() -> AsyncOpenAI:
@@ -47,61 +36,23 @@ async def gerar_resposta_stream(
     contexto_memoria: str = "",
 ) -> AsyncGenerator[tuple[str, str, int, int], None]:
     """
-    Gera resposta do Jarvis via streaming.
+    Gera resposta do Jarvis via streaming com GPT-4o.
 
     Yields: (chunk_texto, modelo_usado, tokens_entrada, tokens_saida)
     - tokens_entrada e tokens_saida so sao preenchidos no ultimo chunk (chunk vazio)
-
-    Tenta Claude primeiro, faz fallback para GPT-4o mini em caso de erro.
     """
     system = SYSTEM_PROMPT
     if contexto_memoria:
         system += f"\n\nContexto de memoria relevante:\n{contexto_memoria}"
 
-    # Tentar Claude primeiro
-    try:
-        async for chunk in _stream_claude(mensagens, system):
-            yield chunk
-        return
-    except (anthropic.APIStatusError, anthropic.APIConnectionError, httpx.TimeoutException) as e:
-        logger.warning("Claude falhou, ativando fallback GPT-4o mini | erro={}", str(e))
-
-    # Fallback: GPT-4o mini
     async for chunk in _stream_openai(mensagens, system):
         yield chunk
-
-
-async def _stream_claude(
-    mensagens: list[dict], system: str
-) -> AsyncGenerator[tuple[str, str, int, int], None]:
-    """Streaming via Claude API."""
-    cliente = get_claude()
-    tokens_entrada = 0
-    tokens_saida = 0
-    modelo = "claude-sonnet-4-6"
-
-    async with cliente.messages.stream(
-        model=modelo,
-        max_tokens=4096,
-        system=system,
-        messages=mensagens,
-    ) as stream:
-        async for texto in stream.text_stream:
-            yield (texto, modelo, 0, 0)
-
-        # Obter uso de tokens no final
-        msg_final = await stream.get_final_message()
-        tokens_entrada = msg_final.usage.input_tokens
-        tokens_saida = msg_final.usage.output_tokens
-
-    # Chunk final vazio com tokens preenchidos
-    yield ("", modelo, tokens_entrada, tokens_saida)
 
 
 async def _stream_openai(
     mensagens: list[dict], system: str
 ) -> AsyncGenerator[tuple[str, str, int, int], None]:
-    """Streaming via OpenAI GPT-4o (fallback)."""
+    """Streaming via OpenAI GPT-4o."""
     cliente = get_openai()
     modelo = "gpt-4o"
     tokens_entrada = 0
