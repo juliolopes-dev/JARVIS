@@ -172,7 +172,7 @@ async def buscar_memorias_relevantes(
     limite: int = 5,
 ) -> str:
     """
-    Busca memorias relevantes via pgvector (cosine similarity).
+    Busca memorias relevantes via pgvector (cosine similarity) + pessoas mencionadas.
     Retorna string formatada para inserir no system prompt.
     """
     try:
@@ -197,15 +197,62 @@ async def buscar_memorias_relevantes(
         )
         memorias = result.fetchall()
 
-        if not memorias:
-            return ""
+        secoes: list[str] = []
 
-        linhas = [f"- {m[0]}" for m in memorias if m[1] > 0.6]
-        return "\n".join(linhas)
+        linhas_memoria = [f"- {m[0]}" for m in memorias if m[1] > 0.6]
+        if linhas_memoria:
+            secoes.append("Fatos relevantes:\n" + "\n".join(linhas_memoria))
+
+        # Detectar pessoas mencionadas na consulta e trazer contexto delas.
+        # Match simples por substring case-insensitive no nome — suficiente para
+        # um usuario unico com poucas dezenas de pessoas cadastradas.
+        pessoas_mencionadas = await _detectar_pessoas_mencionadas(consulta, id_usuario, db)
+        if pessoas_mencionadas:
+            linhas_pessoas = []
+            for p in pessoas_mencionadas:
+                detalhe = p.nome
+                if p.relacao:
+                    detalhe += f" ({p.relacao})"
+                if p.notas:
+                    detalhe += f" — {p.notas}"
+                linhas_pessoas.append(f"- {detalhe}")
+            secoes.append("Pessoas mencionadas:\n" + "\n".join(linhas_pessoas))
+
+        return "\n\n".join(secoes)
 
     except Exception as e:
         logger.warning("Falha ao buscar memorias: {}", str(e))
         return ""
+
+
+async def _detectar_pessoas_mencionadas(
+    consulta: str, id_usuario: uuid.UUID, db: AsyncSession
+) -> list[Pessoa]:
+    """
+    Retorna pessoas cadastradas cujo nome aparece na consulta.
+    Comparacao case-insensitive por substring — basta o primeiro nome bater.
+    """
+    result = await db.execute(
+        select(Pessoa).where(
+            Pessoa.id_usuario == id_usuario,
+            Pessoa.flg_ativo == True,  # noqa: E712
+        )
+    )
+    todas = list(result.scalars())
+    if not todas:
+        return []
+
+    consulta_lower = consulta.lower()
+    mencionadas = []
+    for pessoa in todas:
+        # Match tanto pelo nome completo quanto pelo primeiro nome
+        nome_lower = pessoa.nome.lower()
+        primeiro_nome = nome_lower.split()[0] if nome_lower else ""
+        if nome_lower in consulta_lower or (
+            primeiro_nome and len(primeiro_nome) >= 3 and primeiro_nome in consulta_lower
+        ):
+            mencionadas.append(pessoa)
+    return mencionadas
 
 
 async def listar_memorias(
