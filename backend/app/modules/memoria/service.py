@@ -248,8 +248,12 @@ async def _detectar_pessoas_mencionadas(
         # Match tanto pelo nome completo quanto pelo primeiro nome
         nome_lower = pessoa.nome.lower()
         primeiro_nome = nome_lower.split()[0] if nome_lower else ""
+        relacao_lower = (pessoa.relacao or "").lower()
         if nome_lower in consulta_lower or (
             primeiro_nome and len(primeiro_nome) >= 3 and primeiro_nome in consulta_lower
+        ) or (
+            # Match tambem pela relacao — "minha esposa" deve encontrar a pessoa com relacao="Esposa"
+            relacao_lower and len(relacao_lower) >= 4 and relacao_lower in consulta_lower
         ):
             mencionadas.append(pessoa)
     return mencionadas
