@@ -59,6 +59,11 @@ Assistente pessoal inteligente inspirado no Jarvis do Homem de Ferro. Conversa p
 **Modulo config:**
 - `configuracoes` — id (UUID PK), id_usuario (FK unique), modelo_preferido, tema, voz_resposta, flg_briefing_diario, horario_briefing, flg_notificacoes, preferencias (JSONB), criado_em, atualizado_em
 
+**Modulo livros (Fase 3):**
+- `livros` — id (UUID PK), id_usuario (FK), titulo, autor, total_paginas, total_chunks, flg_ativo, dat_upload
+- `livro_chunks` — id (UUID PK), id_livro (FK CASCADE), numero, capitulo, conteudo (TEXT), total_palavras
+- `leitura_progresso` — id (UUID PK), id_livro (FK CASCADE unique), chunk_atual, tamanho_chunk, flg_modo_estudo, flg_concluido, dat_ultimo_acesso, dat_conclusao
+
 ### Indices
 - `ix_conversas_id_usuario`, `ix_mensagens_id_conversa`, `ix_mensagens_criado_em`
 - `ix_memorias_id_usuario`, `ix_memorias_categoria`, indice HNSW em `memorias.embedding` para busca vetorial
@@ -207,6 +212,13 @@ class Pessoa(Base):
 | DELETE | `/api/memoria/pessoas/{id}` | Desativar pessoa | ✅ |
 | GET | `/api/config` | Obter configuracoes | ✅ |
 | PUT | `/api/config` | Atualizar configuracoes | ✅ |
+| GET | `/api/livros` | Listar livros | ✅ |
+| POST | `/api/livros` | Upload PDF (multipart, max 50MB) | ✅ |
+| DELETE | `/api/livros/{id}` | Remover livro (soft delete) | ✅ |
+| GET | `/api/livros/{id}/ler/proximo` | Proximo chunk + avanca ponteiro | ✅ |
+| GET | `/api/livros/{id}/ler/anterior` | Chunk anterior + volta ponteiro | ✅ |
+| GET | `/api/livros/{id}/progresso` | Obter progresso de leitura | ✅ |
+| PATCH | `/api/livros/{id}/progresso` | Atualizar tamanho_chunk + modo_estudo | ✅ |
 | GET | `/api/tarefas` | Listar tarefas agendadas (Fase 3) | ✅ |
 | POST | `/api/tarefas` | Criar tarefa (Fase 3) | ✅ |
 | PUT | `/api/tarefas/{id}` | Atualizar tarefa (Fase 3) | ✅ |
@@ -218,7 +230,7 @@ class Pessoa(Base):
 | GET | `/api/health` | Healthcheck | ❌ |
 | GET | `/api/version` | Versao do backend | ❌ |
 
-**Total: 31 rotas** | Fase 1: 20 | Fase 2: 2 | Fase 3: 9
+**Total: 40 rotas** | Fase 1: 20 | Fase 2: 2 | Fase 3: 18
 
 ## Estrutura de Pastas Atual
 
@@ -237,6 +249,7 @@ jarvis/
 │       │   ├── LoginPage.tsx
 │       │   ├── ChatPage.tsx
 │       │   ├── MemoriaPage.tsx
+│       │   ├── LivrosPage.tsx
 │       │   └── ConfigPage.tsx
 │       ├── hooks/
 │       │   ├── useAuth.ts
@@ -246,7 +259,8 @@ jarvis/
 │       │   ├── api.ts
 │       │   ├── authService.ts
 │       │   ├── chatService.ts
-│       │   └── memoriaService.ts
+│       │   ├── memoriaService.ts
+│       │   └── livrosService.ts
 │       ├── store/
 │       │   └── useAppStore.ts
 │       ├── types/
@@ -364,7 +378,7 @@ VAPID_CLAIMS_EMAIL=
 ## Roadmap
 - [x] **Fase 1 — Cerebro:** Setup, Database + Alembic, Redis, Auth JWT, Modulo IA (Claude + GPT-4o + fallback), Modulo Memoria (Mem0 + pgvector), Modulo Chat (SSE streaming), CORS + Rate Limiting, Healthcheck + version.json, Dockerfile + deploy EasyPanel, Loguru
 - [x] **Fase 2 — Interface:** Setup frontend Vite, Tela Login, Tela Chat (streaming + auto-scroll), Sidebar Conversas, Tela Memoria, Tela Config, PWA instalavel (SW + manifest + icones), Markdown nas respostas, Design system dark, Layout responsivo mobile
-- [x] **Fase 3 parcial — Autonomia:** ✅ APScheduler com SQLAlchemyJobStore, ✅ Web Push VAPID (notificacoes no celular), ✅ Lembretes via chat (NLP) e manual (LembretesPage), ✅ Whisper-1 (audio→texto→envia), 🔲 Briefing diario, 🔲 Tarefas recorrentes por linguagem natural, 🔲 Gerenciamento de tarefas agendadas
+- [x] **Fase 3 parcial — Autonomia:** ✅ APScheduler com SQLAlchemyJobStore, ✅ Web Push VAPID (notificacoes no celular), ✅ Lembretes via chat (NLP) e manual (LembretesPage), ✅ Whisper-1 (audio→texto→envia), ✅ Modulo Livros (upload PDF, chunking, progresso, resumo IA, perguntas estudo, LivrosPage), ✅ Briefing diario (GPT-4o + cron + Web Push + historico), ✅ Modulo Checklist (listas + tarefas com prioridade/vencimento + TarefasPage responsiva), 🔲 Tarefas recorrentes por linguagem natural, 🔲 Gerenciamento de tarefas agendadas
 - [ ] **Fase 4 — Integracoes (FUTURO):** MCP Gmail, MCP Google Calendar, MCP Web Search
 - [ ] **Fase 5 — Voz (FUTURO):** ElevenLabs (voz), Claude Vision (imagens)
 
@@ -448,12 +462,13 @@ VAPID_CLAIMS_EMAIL=
 - **`cod_usuario` e `cod_pessoa` sem default no banco** — criadas sequencias PostgreSQL manualmente (`usuarios_cod_usuario_seq`, `pessoas_cod_pessoa_seq`). Modelos usam `server_default="nextval('...')"` para que SQLAlchemy omita essas colunas no INSERT
 
 ## Ultima Sessao
-**2026-04-13** — Sessao intensa de features e bugfixes pos-deploy. Jarvis em producao no EasyPanel. Implementados: lembretes via chat (NLP→APScheduler) e manual (LembretesPage), Web Push VAPID (notificacoes chegam no celular), transcricao de audio via Whisper-1 (microfone no chat), PWA instalavel (icones corrigidos), layout responsivo mobile (sidebar drawer + bottom nav + botao menu). Modelo fallback trocado de GPT-4o-mini para GPT-4o. URL producao: https://applications-jarvis.tbs25p.easypanel.host
+**2026-04-14** — Duas features novas: (1) Sistema de temas Arc Reactor (azul) / Homem de Ferro (vermelho + bordas douradas amber-600) via CSS custom properties + data-theme no html. Zustand persiste no localStorage, main.tsx aplica sincronamente para evitar flash. (2) Modulo de livros completo — upload PDF (pdfplumber), chunking inteligente por paragrafos com deteccao de capitulo, progresso por chunk, resumo ao fim de capitulo (GPT-4o), perguntas de fixacao em modo estudo, memoria automatica ao concluir (Mem0). LivrosPage no frontend com upload drag&drop, CardLivro, Leitor full-screen. Deteccao de "proximo trecho" no chat service para entrega inline. Fix: MissingGreenlet corrigido com selectinload apos commit. Fix borda Iron Man: amber-800 → amber-600 apos feedback visual do Julio.
 
 ## Proximos Passos
-1. **Fase 3 restante** — briefing diario (APScheduler job) + tarefas por linguagem natural + gerenciamento de tarefas agendadas
+1. **Fase 3 restante** — tarefas recorrentes por linguagem natural + tela de gerenciamento de tarefas agendadas (briefing diario ✅ concluido)
 2. **Fase 4 (Integracoes FUTURO)** — MCP Gmail, Google Calendar, Web Search
 3. **Testar audio no iOS** — verificar se `audio/mp4` funciona no Safari/iPhone
+4. **Upload PDF lento** — processamento sincrono pode travar em PDFs grandes; considerar background task
 
 ## Historico de Mudancas
 | Data | Mudanca |
@@ -466,3 +481,5 @@ VAPID_CLAIMS_EMAIL=
 | 2026-04-13 | Fase 3 parcial — Lembretes (tabela + APScheduler + CRUD + LembretesPage), Web Push VAPID (notificacoes funcionando no celular), deteccao de lembrete via chat (GPT-4o + json_object), Whisper-1 (transcricao de audio no chat) |
 | 2026-04-13 | PWA instalavel — icones PNG validos (192x192 + 512x512), fix SPA catch-all para servir PNGs, fix includeAssets no VitePWA |
 | 2026-04-13 | Layout responsivo mobile — sidebar drawer + overlay + bottom nav + botao menu no header do chat. Modelo fallback: GPT-4o-mini → GPT-4o |
+| 2026-04-14 | Sistema de temas Arc Reactor/Homem de Ferro — CSS vars + data-theme + Zustand persist + pre-React em main.tsx. Bordas douradas amber-600 no tema Iron Man |
+| 2026-04-14 | Modulo livros completo — upload PDF, pdfplumber, chunking por paragrafos, progresso, resumo IA, perguntas estudo, LivrosPage, integracao no chat. 3 novas tabelas: livros, livro_chunks, leitura_progresso |
