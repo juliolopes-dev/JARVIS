@@ -285,24 +285,16 @@ async def enviar_mensagem_stream(
     tokens_entrada = 0
     tokens_saida = 0
 
-    async def _gerar():
-        nonlocal resposta_completa, modelo_usado, tokens_entrada, tokens_saida
-
-        async for chunk, modelo, t_entrada, t_saida in ia_service.gerar_resposta_stream(
-            mensagens_ia, contexto_memoria
-        ):
-            if chunk:
-                resposta_completa += chunk
-                modelo_usado = modelo
-                yield f"data: {chunk}\n\n"
-            elif t_entrada > 0 or t_saida > 0:
-                tokens_entrada = t_entrada
-                tokens_saida = t_saida
-
-        yield "data: [DONE]\n\n"
-
-    async for evento in _gerar():
-        yield evento
+    async for chunk, modelo, t_entrada, t_saida in ia_service.gerar_resposta_stream(
+        mensagens_ia, contexto_memoria
+    ):
+        if chunk:
+            resposta_completa += chunk
+            modelo_usado = modelo
+            yield f"data: {chunk}\n\n"
+        elif t_entrada > 0 or t_saida > 0:
+            tokens_entrada = t_entrada
+            tokens_saida = t_saida
 
     # 7. Salvar resposta do assistente no banco
     msg_assistente = Mensagem(
@@ -315,24 +307,37 @@ async def enviar_mensagem_stream(
     )
     db.add(msg_assistente)
 
-    # 8. Atualizar contexto no Redis (ultimas 50 mensagens)
-    novo_contexto = contexto_redis + [
-        {"role": "user", "content": conteudo},
-        {"role": "assistant", "content": resposta_completa},
-    ]
-    await salvar_contexto(str(id_conversa), novo_contexto[-50:])
-
-    # 9. Gerar titulo se for a primeira mensagem da conversa
-    conversa = await buscar_conversa(id_conversa, id_usuario, db)
-    if conversa and not conversa.titulo:
-        try:
+    # 8. Gerar titulo se for a primeira mensagem da conversa
+    try:
+        conversa = await buscar_conversa(id_conversa, id_usuario, db)
+        if conversa and not conversa.titulo:
             titulo = await ia_service.gerar_titulo(conteudo)
             conversa.titulo = titulo
             db.add(conversa)
-        except Exception as e:
-            logger.warning("Falha ao gerar titulo: {}", str(e))
+    except Exception as e:
+        logger.warning("Falha ao gerar titulo: {}", str(e))
 
-    await db.commit()
+    # 9. Commitar ANTES do [DONE] e ANTES de chamadas externas.
+    # O frontend recarrega mensagens ao receber [DONE] — o commit precisa estar
+    # persistido antes. Redis e best-effort, nao pode derrubar o chat.
+    try:
+        await db.commit()
+    except Exception as e:
+        logger.error("Falha ao commitar mensagens do chat: {}", str(e))
+        await db.rollback()
+
+    # 10. Sinaliza o fim do stream somente apos commit
+    yield "data: [DONE]\n\n"
+
+    # 11. Atualizar contexto no Redis (apos commit, best-effort)
+    try:
+        novo_contexto = contexto_redis + [
+            {"role": "user", "content": conteudo},
+            {"role": "assistant", "content": resposta_completa},
+        ]
+        await salvar_contexto(str(id_conversa), novo_contexto[-50:])
+    except Exception as e:
+        logger.warning("Falha ao salvar contexto no Redis: {}", str(e))
     logger.info(
         "Mensagem processada | conversa={} | modelo={} | tokens_in={} | tokens_out={}",
         id_conversa,
