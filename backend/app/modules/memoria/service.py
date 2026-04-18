@@ -19,6 +19,23 @@ def _normalizar(texto: str) -> str:
     nfkd = unicodedata.normalize("NFKD", texto)
     sem_acento = "".join(c for c in nfkd if not unicodedata.combining(c))
     return sem_acento.lower()
+
+
+CATEGORIAS_VALIDAS = {"pessoa", "local", "trabalho", "preferencia", "meta", "fato"}
+
+
+def _extrair_categoria(conteudo: str) -> tuple[str, str]:
+    """
+    Se o conteudo vier prefixado com [categoria], separa e retorna (categoria, texto_limpo).
+    Senao, classifica como 'fato'.
+    """
+    match = re.match(r"^\s*\[(\w+)\]\s*(.+)$", conteudo, re.DOTALL)
+    if match:
+        cat = match.group(1).lower()
+        texto = match.group(2).strip()
+        if cat in CATEGORIAS_VALIDAS:
+            return cat, texto
+    return "fato", conteudo.strip()
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -84,7 +101,16 @@ def get_mem0():
                 "3. Fatos de IDADE: qualquer nova idade mencionada e UPDATE do fato de idade existente.\n"
                 "4. Fatos de PROFISSAO: novas profissoes ou cargos sao UPDATE do fato de profissao existente.\n"
                 "5. Fatos validos: nome, idade, cidade, profissao, preferencias, relacionamentos, habitos, metas, habilidades.\n"
-                "6. Ignore informacoes genericas sem relacao pessoal direta com o usuario."
+                "6. Ignore informacoes genericas sem relacao pessoal direta com o usuario.\n"
+                "7. CLASSIFIQUE cada fato prefixando com a categoria entre colchetes no comeco do texto. "
+                "Categorias validas:\n"
+                "   [pessoa] — nome, idade, aparencia, dados pessoais do usuario\n"
+                "   [local] — onde mora, cidade, bairro, lugares que frequenta\n"
+                "   [trabalho] — profissao, cargo, empresa, projetos, habilidades tecnicas\n"
+                "   [preferencia] — gostos, odios, hobbies, comidas, filmes, musicas favoritas\n"
+                "   [meta] — objetivos, planos, metas de curto/longo prazo, desejos\n"
+                "   [fato] — qualquer outro fato pessoal que nao se encaixa acima\n"
+                "Exemplo: '[local] Mora em Sao Paulo', '[preferencia] Gosta de sushi', '[trabalho] Trabalha como dev Python'."
             ),
         }
     )
@@ -114,11 +140,13 @@ async def extrair_e_salvar_memoria(
         if resultado and "results" in resultado:
             for item in resultado["results"]:
                 evento = item.get("event")
-                conteudo = item.get("memory", "")
+                conteudo_raw = item.get("memory", "")
                 id_mem0 = item.get("id", "")
-                if not conteudo:
+                if not conteudo_raw:
                     continue
 
+                # Parseia o prefixo [categoria] inserido pelo custom_prompt do Mem0
+                categoria, conteudo = _extrair_categoria(conteudo_raw)
                 embedding = await gerar_embedding(conteudo)
 
                 if evento == "ADD":
@@ -126,7 +154,7 @@ async def extrair_e_salvar_memoria(
                         id_usuario=id_usuario,
                         id_mem0=id_mem0 or None,
                         conteudo=conteudo,
-                        categoria="fato",
+                        categoria=categoria,
                         embedding=embedding,
                     )
                     db.add(memoria)
@@ -142,15 +170,15 @@ async def extrair_e_salvar_memoria(
                     memoria_existente = result.scalar_one_or_none()
                     if memoria_existente:
                         memoria_existente.conteudo = conteudo
+                        memoria_existente.categoria = categoria
                         memoria_existente.embedding = embedding
                         db.add(memoria_existente)
                     else:
-                        # Nao encontrou pelo id_mem0 — criar novo
                         db.add(Memoria(
                             id_usuario=id_usuario,
                             id_mem0=id_mem0,
                             conteudo=conteudo,
-                            categoria="fato",
+                            categoria=categoria,
                             embedding=embedding,
                         ))
 

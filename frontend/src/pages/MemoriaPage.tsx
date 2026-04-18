@@ -10,9 +10,21 @@ import { cn } from '@/utils/cn'
 import type { Memoria, Pessoa } from '@/types'
 
 type Aba = 'memorias' | 'pessoas'
+type Categoria = 'todas' | 'pessoa' | 'local' | 'trabalho' | 'preferencia' | 'meta' | 'fato'
+
+const CATEGORIAS: { valor: Categoria; label: string }[] = [
+  { valor: 'todas', label: 'Todas' },
+  { valor: 'pessoa', label: 'Pessoa' },
+  { valor: 'local', label: 'Local' },
+  { valor: 'trabalho', label: 'Trabalho' },
+  { valor: 'preferencia', label: 'Preferências' },
+  { valor: 'meta', label: 'Metas' },
+  { valor: 'fato', label: 'Outros' },
+]
 
 export function MemoriaPage() {
   const [aba, setAba] = useState<Aba>('memorias')
+  const [categoria, setCategoria] = useState<Categoria>('todas')
   const [memorias, setMemorias] = useState<Memoria[]>([])
   const [pessoas, setPessoas] = useState<Pessoa[]>([])
   const [carregando, setCarregando] = useState(true)
@@ -24,12 +36,13 @@ export function MemoriaPage() {
   useEffect(() => {
     if (aba === 'memorias') carregarMemorias()
     else carregarPessoas()
-  }, [aba])
+  }, [aba, categoria])
 
   async function carregarMemorias() {
     setCarregando(true)
     try {
-      const lista = await memoriaService.listarMemorias()
+      const filtro = categoria === 'todas' ? undefined : categoria
+      const lista = await memoriaService.listarMemorias(filtro)
       setMemorias(lista)
     } catch {
       toast.error('Erro ao carregar memórias')
@@ -154,6 +167,26 @@ export function MemoriaPage() {
           </button>
         ))}
       </div>
+
+      {/* Filtro de categorias — so na aba memorias */}
+      {aba === 'memorias' && (
+        <div className="shrink-0 flex flex-wrap gap-1.5 px-6 py-3 border-b border-surface-border">
+          {CATEGORIAS.map((c) => (
+            <button
+              key={c.valor}
+              onClick={() => setCategoria(c.valor)}
+              className={cn(
+                'px-2.5 py-1 rounded-full text-xs border transition-colors cursor-pointer',
+                categoria === c.valor
+                  ? 'bg-accent/15 border-accent/40 text-accent'
+                  : 'bg-transparent border-surface-border text-text-muted hover:text-text-primary hover:border-surface-muted'
+              )}
+            >
+              {c.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Conteúdo */}
       <div className="flex-1 overflow-y-auto p-6">

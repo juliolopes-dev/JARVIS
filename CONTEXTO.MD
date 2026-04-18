@@ -392,6 +392,116 @@ VAPID_CLAIMS_EMAIL=
 - [ ] **Fase 4 — Integracoes (FUTURO):** MCP Gmail, MCP Google Calendar, MCP Web Search
 - [ ] **Fase 5 — Voz (FUTURO):** ElevenLabs (voz), Claude Vision (imagens)
 
+## Super Assistente — Features do "Jarvis Definitivo"
+
+Lista de 10 features ordenadas por impacto real no dia-a-dia. Serao desenvolvidas aos poucos apos Fase 4.
+**Filosofia:** super assistente nao vem de framework (LangChain/etc), vem de mais contexto + mais ferramentas + prompts melhores + dados pessoais. MCP resolve integracoes, SDK direto resolve orquestracao simples.
+
+### Prioridade MAXIMA (caso de uso diario)
+
+#### 1. Gmail MCP (Fase 4 ja prevista)
+- Acoes: resumir inbox, responder emails, arquivar newsletters, buscar por remetente/assunto
+- Impacto: gigante — email e o maior ladrao de tempo
+- Esforco: 2 dias
+- Integracao: MCP oficial do Google
+
+#### 2. Google Calendar MCP (Fase 4 ja prevista)
+- Acoes: "que compromissos tenho amanha?", "marca reuniao com X quarta 14h"
+- Integra com briefing diario ja existente
+- Esforco: 1 dia
+
+#### 3. WhatsApp MCP
+- Stack: Baileys ou Evolution API (rodam self-hosted)
+- Acoes: resumir grupo da familia, responder cliente, detectar quem mandou mensagem
+- Maior ganho de tempo no Brasil — nao existe MCP oficial ainda, precisa construir
+- Esforco: 3-4 dias
+
+#### 4. Proatividade — Jarvis te procura sem voce pedir
+- Alem do briefing fixo das 8h, Jarvis detecta eventos e avisa:
+  - "Email urgente do seu chefe"
+  - "Reuniao em 15min, voce esta em casa, tem 20min de transito"
+  - "Voce disse que ia ligar pro Paulo hoje — nao ligou"
+- Requer: cron de polling Gmail/Calendar + scoring de urgencia + Web Push
+- Esforco: 3 dias
+- Depende: Gmail MCP + Calendar MCP prontos
+
+#### 5. Automacoes n8n invocaveis por voz
+- Julio ja tem o NEXUS n8n rodando
+- Expor workflows como "tools" do Jarvis via webhook
+- "Jarvis, roda o fluxo de fechamento mensal"
+- Multiplica poder sem escrever codigo novo
+- Esforco: 1 dia
+
+### Prioridade ALTA (impacto grande mas depende dos de cima)
+
+#### 6. Contexto ambiente — localizacao + momento do dia
+- Frontend ja e PWA, pega geolocalizacao
+- "Voce esta no escritorio ha 9h, quer que eu bloqueie notificacoes nao-urgentes?"
+- Mudanca de comportamento por contexto — notificacoes diferentes em casa vs escritorio vs viagem
+- Esforco: 2 dias
+
+#### 7. Voz em 2 vias (TTS + wake word)
+- Hoje Julio grava audio e envia (Whisper funciona)
+- Falta:
+  - Resposta em audio (ElevenLabs ou OpenAI TTS) — ja no roadmap Fase 5
+  - Wake word "Jarvis" (Porcupine ou OpenAI realtime)
+- Transforma em assistente de verdade, maos livres
+- Esforco: 4-5 dias
+
+#### 8. Base de conhecimento pessoal + RAG expandido
+- Ja tem modulo livros com RAG
+- Expandir para:
+  - Contratos PDF, notas fiscais, extratos bancarios
+  - Notas do Obsidian/Notion
+  - Fotos com OCR (GPT-4o Vision)
+- "Quando foi a ultima revisao do carro?" -> busca nota fiscal automaticamente
+- Esforco: 3-4 dias
+
+### Prioridade MEDIA (requerem guardrails)
+
+#### 9. Agente com autonomia para executar (nao so sugerir)
+- Modelo: Jarvis sugere -> Julio aprova -> executa
+- Ex: "Encontrei 3 emails que posso arquivar. Aprovar?"
+- Requer:
+  - Log de todas as acoes executadas
+  - Rollback possivel
+  - Guardrails (nunca deletar sem aprovar, nunca gastar dinheiro sem aprovar)
+- Esforco: 5-7 dias (complexo, cuidado)
+
+#### 10. Multi-modal — ver tela e responder sobre imagem
+- GPT-4o ja suporta vision
+- "Print dessa planilha — o que esta errado?"
+- "Foto do extrato — classifica por categoria"
+- Util para tarefas visuais rapidas
+- Esforco: 2 dias
+
+### Ranking por custo/beneficio imediato
+
+| # | Feature | Esforco | Impacto |
+|---|---------|---------|---------|
+| 1 | Gmail MCP | 2 dias | 🔥🔥🔥🔥🔥 |
+| 2 | Calendar MCP | 1 dia | 🔥🔥🔥🔥🔥 |
+| 3 | WhatsApp | 3-4 dias | 🔥🔥🔥🔥🔥 |
+| 4 | Proatividade | 3 dias | 🔥🔥🔥🔥🔥 |
+| 5 | n8n invocavel | 1 dia | 🔥🔥🔥🔥 |
+| 10 | Multi-modal | 2 dias | 🔥🔥🔥🔥 |
+| 6 | Contexto ambiente | 2 dias | 🔥🔥🔥 |
+| 8 | RAG expandido | 3-4 dias | 🔥🔥🔥 |
+| 7 | Voz 2 vias | 4-5 dias | 🔥🔥🔥 |
+| 9 | Agente autonomo | 5-7 dias | 🔥🔥🔥 (alto risco) |
+
+### Ordem sugerida de implementacao
+1. **Fase 4 (ja planejada):** Gmail + Calendar + Web Search
+2. **Fase 4.5:** n8n invocavel (1 dia, multiplica valor do que ja existe)
+3. **Fase 5:** WhatsApp (brasileiro precisa)
+4. **Fase 6:** Proatividade (depende de Gmail + Calendar)
+5. **Fase 7:** Voz 2 vias + wake word
+6. **Fase 8:** RAG expandido (OCR + notas)
+7. **Fase 9:** Multi-modal vision
+8. **Fase 10:** Agente autonomo com guardrails
+
+**Frameworks rejeitados:** LangChain, LangGraph (por enquanto). Motivo: overhead de abstracao dificulta debug, SDK direto + MCP e mais simples e mais rapido para 1 usuario. Reavaliar se o numero de tools passar de 20+ com fluxos condicionais complexos.
+
 ## Convencoes de Codigo
 - **Python:** `snake_case` (funcoes/variaveis), `PascalCase` (classes/modelos), `SCREAMING_SNAKE_CASE` (constantes)
 - **TypeScript:** `camelCase` (funcoes/variaveis), `PascalCase` (componentes/tipos)
