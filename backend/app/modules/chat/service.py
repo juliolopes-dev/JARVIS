@@ -65,14 +65,17 @@ async def listar_mensagens(
     pagina: int = 1,
     por_pagina: int = 50,
 ) -> list[Mensagem]:
+    # Busca as N mais recentes (desc) e devolve em ordem cronologica (asc).
+    # Sem isso, em conversas com mais de `por_pagina` mensagens a pagina 1
+    # traria apenas as mais antigas e as recem-enviadas ficariam invisiveis.
     result = await db.execute(
         select(Mensagem)
         .where(Mensagem.id_conversa == id_conversa)
-        .order_by(Mensagem.criado_em.asc())
+        .order_by(Mensagem.criado_em.desc())
         .offset((pagina - 1) * por_pagina)
         .limit(por_pagina)
     )
-    return list(result.scalars())
+    return list(reversed(list(result.scalars())))
 
 
 async def enviar_mensagem_stream(
