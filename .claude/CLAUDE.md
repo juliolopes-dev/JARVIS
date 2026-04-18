@@ -27,7 +27,7 @@ Assistente pessoal de IA (estilo Jarvis do Homem de Ferro) — 1 usuario, multi-
 - **Logs:** Loguru com filter anti-leak (nunca loga headers, `.env`, chaves API, tokens JWT, senhas)
 - **Gerenciador:** `uv` (nao pip) — comandos sempre `uv run ...`
 - **Linter:** Ruff (substitui Black, Flake8, isort)
-- **Libs principais backend:** anthropic, openai, mem0ai, pgvector, httpx, apscheduler, pywebpush, slowapi, loguru, asyncpg, redis, pydantic-settings
+- **Libs principais backend:** anthropic, openai, mem0ai, pgvector, httpx, apscheduler, pywebpush, slowapi, loguru, asyncpg, redis, pydantic-settings, pdfplumber
 - **Libs principais frontend:** axios, zustand, @tanstack/react-query, lucide-react, date-fns, sonner, vite-plugin-pwa, react-markdown
 
 ## MCPs disponiveis para este projeto
@@ -52,6 +52,12 @@ Assistente pessoal de IA (estilo Jarvis do Homem de Ferro) — 1 usuario, multi-
 - **VitePWA com `injectManifest` NAO copia PNGs automaticamente** — adicionar `pwa-192x192.png` e `pwa-512x512.png` no `includeAssets` do `vite.config.ts`. Sem isso os icones nao vao para o `dist`
 - **Layout mobile responsivo** — sidebar usa drawer fixo (`fixed inset-y-0 left-0 z-40`) no mobile e `md:flex flex-shrink-0` no desktop. Controle separado no AppLayout com dois wrappers distintos. Sidebar interna tem `width` fixo sempre — quem controla visibilidade e o wrapper
 - **Whisper-1** integrado em `app/modules/ia/service.py` → `POST /api/chat/transcrever` (multipart/form-data). Frontend usa `MediaRecorder` com `audio/webm;codecs=opus` (Chrome) ou `audio/mp4` (Safari)
+- **SQLAlchemy async: `db.refresh()` NAO carrega relacionamentos** — apos `await db.commit()`, usar `select(...).options(selectinload(Model.rel))` em query nova. `refresh()` recarrega colunas escalares mas NAO lazy relationships. Sem isso: `MissingGreenlet: greenlet_spawn has not been called` ao serializar o relacionamento
+- **Alembic autogenerate detecta tabelas externas como "to be dropped"** — tabelas como `mem0migrations`, `apscheduler_jobs`, `jarvis_memories` aparecem no diff como `op.drop_table(...)`. Sempre revisar e remover manualmente esses drops antes de aplicar a migracao. Nunca aplicar migracao autogenerate sem revisao manual
+- **Modulo livros** — `app/modules/livros/` com `models.py` (Livro, LivroChunk, LeituraProgresso), `service.py`, `router.py`, `schemas.py`. Upload via multipart/form-data (max 50MB), processamento com `pdfplumber`, chunking por paragrafos com deteccao de capitulo
+- **Modulo tarefas (recorrentes)** — `app/modules/tarefas/` usa a tabela `tarefas_agendadas` ja criada na migracao inicial (Fase 1). Rota `/api/tarefas-agendadas/*` (NAO `/api/tarefas`, que conflitaria com `/api/checklist/tarefas`). Usa `APScheduler CronTrigger.from_crontab(cron, timezone="America/Sao_Paulo")` — NUNCA omitir o timezone, senao os jobs disparam em UTC. Startup em `main.py` reagenda todas as tarefas com `sts_tarefa='ativa'` via `reagendar_todas()`
+- **3 parsers de NLP rodam em paralelo no chat/service.py** — `detectar_lembrete` (pontual), `detectar_tarefa` (checklist), `detectar_tarefa_recorrente` (cron). Ordem de prioridade: recorrente > lembrete > tarefa. Se recorrente detectado, zerar `lembrete_info` para evitar duplicacao (o parser de lembrete pontual ocasionalmente aceita frases recorrentes). Cada parser tem seu prompt dedicado em `ia/prompts.py` com exemplos explicitos do que NAO e aquela categoria
+- **Marcadores sinteticos enviados ao sistema prompt** — `[LEMBRETE_CRIADO: ...]`, `[TAREFA_CRIADA: ...]`, `[TAREFA_RECORRENTE_CRIADA: descricao | cron=X]` injetados no conteudo da IA para que a resposta confirme naturalmente. O prompt do sistema ensina o Jarvis a reagir a cada marcador — NUNCA dizer que houve erro a menos que o sistema retorne explicitamente um erro
 
 ## Rotas
 - **Prefixo obrigatorio:** `/api` — em TODAS as rotas
@@ -139,6 +145,8 @@ npx web-push generate-vapid-keys
 - **System prompt do Jarvis** — fica em `app/modules/ia/prompts.py`, versionado no git. Iterar conforme uso real
 - **Briefing diario** (Fase 3) — job APScheduler que roda no horario configurado em `configuracoes.horario_briefing` e dispara Web Push
 - **Tarefas por linguagem natural** (Fase 3) — "todo dia as 8h me manda X" → Claude parseia → cria job APScheduler com cron expression
+- **Modulo livros** — upload PDF, processamento `pdfplumber`, chunking inteligente (paragrafos + deteccao de capitulo), progresso por chunk, resumo ao fim de capitulo (GPT-4o), perguntas de fixacao (modo estudo), memoria automatica ao concluir livro (Mem0). Deteccao de "proximo trecho" no chat service para entrega inline
+- **PDF upload** — `POST /api/livros/` via multipart/form-data. Limite 50MB configurado no router. Processamento sincrono no request (pode ser lento para PDFs grandes — considerar background task em versao futura)
 
 ## Atualizacao Automatica
 Atualizar este `.claude/CLAUDE.md` sempre que:

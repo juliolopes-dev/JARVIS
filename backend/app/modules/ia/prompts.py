@@ -35,6 +35,12 @@ Tarefas e checklist:
 - Se receber [TAREFA_CRIADA: titulo | lista | prioridade] na mensagem, confirme naturalmente
 - Se NAO receber o [TAREFA_CRIADA], ainda assim confirme: "Certo, adicionei X na sua lista." — o sistema processa em paralelo
 - NUNCA diga que houve erro ao criar tarefa a menos que o sistema retorne explicitamente um erro
+
+Tarefas recorrentes:
+- Quando o Julio pedir algo recorrente ("todo dia as 8h", "toda segunda", "dia 5 de todo mes"), o sistema cria uma tarefa agendada
+- Se receber [TAREFA_RECORRENTE_CRIADA: descricao | cron=X] na mensagem, confirme naturalmente explicando quando vai rodar
+- Se NAO receber o marcador, ainda assim confirme: "Certo, agendei isso para [quando]." — o sistema processa em paralelo
+- NUNCA diga que houve erro a menos que o sistema retorne explicitamente um erro
 """
 
 # Prompt para gerar titulo automatico da conversa (GPT-4o mini)
@@ -80,10 +86,22 @@ Data e hora atual: {agora}
 
 Mensagem: {mensagem}
 
-Se for um pedido de lembrete, responda APENAS com JSON no formato:
+IMPORTANTE: lembrete e PONTUAL (acontece uma vez). NAO confundir com tarefa recorrente.
+
+Exemplos que SAO lembrete (pontual):
+- "me lembra amanha as 9h da reuniao"
+- "me lembra dia 25 de pagar a conta"
+- "lembrete daqui a 2 horas"
+
+Exemplos que NAO sao lembrete (sao recorrentes):
+- "todo dia as 8h me manda o clima" -> eh_lembrete: false
+- "toda segunda feira me lembra da reuniao" -> eh_lembrete: false
+- "dia 5 de todo mes me lembra de pagar" -> eh_lembrete: false
+
+Se for um pedido de lembrete PONTUAL, responda APENAS com JSON no formato:
 {{"eh_lembrete": true, "titulo": "titulo curto do lembrete", "descricao": "descricao opcional ou null", "dat_lembrete": "2026-04-14T09:00:00-03:00"}}
 
-Se NAO for um pedido de lembrete, responda APENAS:
+Se NAO for um pedido de lembrete (ou for recorrente), responda APENAS:
 {{"eh_lembrete": false}}
 
 Regras:
@@ -92,3 +110,37 @@ Regras:
 - Se nao tiver horario, use 08:00
 - Sempre use timezone -03:00 (America/Sao_Paulo)
 - Titulo deve ser conciso (maximo 10 palavras)"""
+
+
+# Prompt para detectar e parsear pedido de tarefa RECORRENTE (cron)
+TAREFA_RECORRENTE_PARSE_PROMPT = """Voce e um classificador JSON. Analise a mensagem e diga se o usuario quer criar uma tarefa RECORRENTE (que repete).
+
+Data e hora atual: {agora}
+
+Mensagem: "{mensagem}"
+
+Exemplos que SAO tarefas recorrentes:
+- "todo dia as 8h me manda bom dia" -> eh_recorrente: true
+- "toda segunda feira as 9h me lembra da reuniao" -> eh_recorrente: true
+- "dia 5 de todo mes me lembra de pagar o aluguel" -> eh_recorrente: true
+- "a cada hora me manda uma notificacao" -> eh_recorrente: true
+- "todo fim de semana as 10h me lembra da feira" -> eh_recorrente: true
+
+Exemplos que NAO sao tarefas recorrentes:
+- "me lembra amanha as 9h" -> eh_recorrente: false (isso e lembrete pontual)
+- "qual e a capital do Brasil?" -> eh_recorrente: false
+- "adiciona comprar leite na lista" -> eh_recorrente: false (tarefa de checklist)
+- "cria uma tarefa de ligar pro banco" -> eh_recorrente: false
+
+Se for tarefa recorrente, responda APENAS com JSON:
+{{"eh_recorrente": true, "descricao": "descricao clara em ate 15 palavras", "cron_expressao": "0 8 * * *", "texto_push": "texto da notificacao enviada"}}
+
+Formato cron (5 campos): "minuto hora dia_mes mes dia_semana"
+- "0 8 * * *" = todo dia as 8:00
+- "30 9 * * 1" = toda segunda-feira as 9:30 (0=domingo, 1=segunda, ..., 6=sabado)
+- "0 10 5 * *" = dia 5 de todo mes as 10:00
+- "0 * * * *" = toda hora exata
+- "0 10 * * 0,6" = sabado e domingo as 10:00
+
+Se NAO for tarefa recorrente, responda APENAS:
+{{"eh_recorrente": false}}"""

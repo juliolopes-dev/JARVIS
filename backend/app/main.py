@@ -19,6 +19,7 @@ from app.modules.notificacoes.router import router as notificacoes_router
 from app.modules.checklist.router import router as checklist_router
 from app.modules.config.router import router as config_router
 from app.modules.livros.router import router as livros_router
+from app.modules.tarefas.router import router as tarefas_router
 
 
 # ─── Loguru ──────────────────────────────────────────────────────────────────
@@ -81,6 +82,18 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning("Falha ao agendar briefings no startup: {}", str(e))
 
+    # Reagendar tarefas recorrentes ativas
+    try:
+        from app.core.database import AsyncSessionLocal
+        from app.modules.tarefas.service import reagendar_todas
+
+        async with AsyncSessionLocal() as db:
+            total = await reagendar_todas(db)
+            await db.commit()
+            logger.info("Tarefas recorrentes reagendadas | total={}", total)
+    except Exception as e:
+        logger.warning("Falha ao reagendar tarefas no startup: {}", str(e))
+
     yield
     scheduler.shutdown()
     logger.info("Jarvis encerrando...")
@@ -124,6 +137,7 @@ app.include_router(notificacoes_router, prefix="/api/notificacoes", tags=["notif
 app.include_router(checklist_router, prefix="/api/checklist", tags=["checklist"])
 app.include_router(config_router, prefix="/api/config", tags=["config"])
 app.include_router(livros_router, prefix="/api/livros", tags=["livros"])
+app.include_router(tarefas_router, prefix="/api/tarefas-agendadas", tags=["tarefas-agendadas"])
 
 
 @app.get("/api/health", tags=["sistema"])

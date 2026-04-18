@@ -94,13 +94,22 @@ async def enviar_mensagem_stream(
     db.add(msg_usuario)
     await db.flush()
 
-    # 2. Detectar lembrete e tarefa na mensagem em paralelo (antes do streaming)
+    # 2. Detectar lembrete, tarefa de checklist e tarefa recorrente em paralelo
     import asyncio
-    lembrete_info, tarefa_info = await asyncio.gather(
+    lembrete_info, tarefa_info, recorrente_info = await asyncio.gather(
         ia_service.detectar_lembrete(conteudo),
         ia_service.detectar_tarefa(conteudo),
+        ia_service.detectar_tarefa_recorrente(conteudo),
     )
-    logger.info("Deteccao | lembrete={} | tarefa={}", lembrete_info, tarefa_info)
+    logger.info(
+        "Deteccao | lembrete={} | tarefa={} | recorrente={}",
+        lembrete_info, tarefa_info, recorrente_info,
+    )
+
+    # Prioridade: recorrente > lembrete > tarefa (evita duplicacao se o parser
+    # de lembrete pontual acidentalmente aceitar um recorrente)
+    if recorrente_info:
+        lembrete_info = None
 
     confirmacao_lembrete = ""
     if lembrete_info:
@@ -163,6 +172,32 @@ async def enviar_mensagem_stream(
                 )
         except Exception as e:
             logger.warning("Falha ao criar tarefa via chat: {} | dados={}", str(e), tarefa_info)
+
+    confirmacao_recorrente = ""
+    if recorrente_info:
+        try:
+            from app.core.database import AsyncSessionLocal
+            from app.modules.tarefas.schemas import TarefaAgendadaCreate
+            from app.modules.tarefas.service import criar_tarefa as criar_tarefa_agendada
+
+            async with AsyncSessionLocal() as db_rec:
+                dados_rec = TarefaAgendadaCreate(
+                    descricao=recorrente_info["descricao"],
+                    cron_expressao=recorrente_info["cron_expressao"],
+                    parametros={
+                        "texto_push": recorrente_info.get("texto_push", recorrente_info["descricao"]),
+                        "titulo_push": "🔔 " + recorrente_info["descricao"][:40],
+                        "origem": "chat",
+                    },
+                )
+                tarefa_rec = await criar_tarefa_agendada(dados_rec, id_usuario, db_rec)
+                await db_rec.commit()
+                confirmacao_recorrente = (
+                    f"\n\n[TAREFA_RECORRENTE_CRIADA: {tarefa_rec.descricao} | "
+                    f"cron={tarefa_rec.cron_expressao}]"
+                )
+        except Exception as e:
+            logger.warning("Falha ao criar tarefa recorrente via chat: {} | dados={}", str(e), recorrente_info)
 
     # 2c. Detectar pedido de proximo trecho de livro
     confirmacao_leitura = ""
@@ -241,7 +276,7 @@ async def enviar_mensagem_stream(
     )
 
     # 5. Montar mensagens para a IA (incluir confirmacoes se houver)
-    conteudo_ia = conteudo + confirmacao_lembrete + confirmacao_tarefa + confirmacao_leitura
+    conteudo_ia = conteudo + confirmacao_lembrete + confirmacao_tarefa + confirmacao_recorrente + confirmacao_leitura
     mensagens_ia = contexto_redis + [{"role": "user", "content": conteudo_ia}]
 
     # 6. Streaming da resposta

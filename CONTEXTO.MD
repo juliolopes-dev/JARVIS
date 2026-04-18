@@ -219,11 +219,11 @@ class Pessoa(Base):
 | GET | `/api/livros/{id}/ler/anterior` | Chunk anterior + volta ponteiro | ✅ |
 | GET | `/api/livros/{id}/progresso` | Obter progresso de leitura | ✅ |
 | PATCH | `/api/livros/{id}/progresso` | Atualizar tamanho_chunk + modo_estudo | ✅ |
-| GET | `/api/tarefas` | Listar tarefas agendadas (Fase 3) | ✅ |
-| POST | `/api/tarefas` | Criar tarefa (Fase 3) | ✅ |
-| PUT | `/api/tarefas/{id}` | Atualizar tarefa (Fase 3) | ✅ |
-| DELETE | `/api/tarefas/{id}` | Remover tarefa (Fase 3) | ✅ |
-| POST | `/api/tarefas/{id}/executar` | Executar manualmente (Fase 3) | ✅ |
+| GET | `/api/tarefas-agendadas/` | Listar tarefas recorrentes (Fase 3) | ✅ |
+| POST | `/api/tarefas-agendadas/` | Criar tarefa recorrente (Fase 3) | ✅ |
+| PUT | `/api/tarefas-agendadas/{id}` | Atualizar tarefa (descricao/cron/status) (Fase 3) | ✅ |
+| DELETE | `/api/tarefas-agendadas/{id}` | Remover tarefa recorrente (Fase 3) | ✅ |
+| POST | `/api/tarefas-agendadas/{id}/executar` | Disparar manualmente (teste) (Fase 3) | ✅ |
 | POST | `/api/notificacoes/subscrever` | Registrar push (Fase 3) | ✅ |
 | DELETE | `/api/notificacoes/subscrever` | Remover push (Fase 3) | ✅ |
 | POST | `/api/notificacoes/testar` | Teste push (Fase 3) | ✅ |
@@ -259,8 +259,12 @@ jarvis/
 │       │   ├── api.ts
 │       │   ├── authService.ts
 │       │   ├── chatService.ts
+│       │   ├── checklistService.ts
+│       │   ├── configService.ts
+│       │   ├── lembretesService.ts
+│       │   ├── livrosService.ts
 │       │   ├── memoriaService.ts
-│       │   └── livrosService.ts
+│       │   └── tarefasAgendadasService.ts
 │       ├── store/
 │       │   └── useAppStore.ts
 │       ├── types/
@@ -285,8 +289,14 @@ jarvis/
 │   │   │   │   ├── service.py
 │   │   │   │   └── prompts.py
 │   │   │   ├── tarefas/
-│   │   │   │   ├── scheduler.py
-│   │   │   │   └── jobs.py
+│   │   │   │   ├── models.py
+│   │   │   │   ├── schemas.py
+│   │   │   │   ├── service.py
+│   │   │   │   └── router.py
+│   │   │   ├── lembretes/
+│   │   │   ├── livros/
+│   │   │   ├── checklist/
+│   │   │   ├── briefing/
 │   │   │   ├── notificacoes/
 │   │   │   └── config/
 │   │   ├── middleware/
@@ -378,7 +388,7 @@ VAPID_CLAIMS_EMAIL=
 ## Roadmap
 - [x] **Fase 1 — Cerebro:** Setup, Database + Alembic, Redis, Auth JWT, Modulo IA (Claude + GPT-4o + fallback), Modulo Memoria (Mem0 + pgvector), Modulo Chat (SSE streaming), CORS + Rate Limiting, Healthcheck + version.json, Dockerfile + deploy EasyPanel, Loguru
 - [x] **Fase 2 — Interface:** Setup frontend Vite, Tela Login, Tela Chat (streaming + auto-scroll), Sidebar Conversas, Tela Memoria, Tela Config, PWA instalavel (SW + manifest + icones), Markdown nas respostas, Design system dark, Layout responsivo mobile
-- [x] **Fase 3 parcial — Autonomia:** ✅ APScheduler com SQLAlchemyJobStore, ✅ Web Push VAPID (notificacoes no celular), ✅ Lembretes via chat (NLP) e manual (LembretesPage), ✅ Whisper-1 (audio→texto→envia), ✅ Modulo Livros (upload PDF, chunking, progresso, resumo IA, perguntas estudo, LivrosPage), ✅ Briefing diario (GPT-4o + cron + Web Push + historico), ✅ Modulo Checklist (listas + tarefas com prioridade/vencimento + TarefasPage responsiva), 🔲 Tarefas recorrentes por linguagem natural, 🔲 Gerenciamento de tarefas agendadas
+- [x] **Fase 3 — Autonomia:** ✅ APScheduler com SQLAlchemyJobStore, ✅ Web Push VAPID (notificacoes no celular), ✅ Lembretes via chat (NLP) e manual (LembretesPage), ✅ Whisper-1 (audio→texto→envia), ✅ Modulo Livros (upload PDF, chunking, progresso, resumo IA, perguntas estudo, LivrosPage), ✅ Briefing diario (GPT-4o + cron + Web Push + historico), ✅ Modulo Checklist (listas + tarefas com prioridade/vencimento + TarefasPage responsiva), ✅ Tarefas recorrentes por linguagem natural (CronTrigger + parser NLP), ✅ Gerenciamento de tarefas agendadas (aba Recorrentes em LembretesPage)
 - [ ] **Fase 4 — Integracoes (FUTURO):** MCP Gmail, MCP Google Calendar, MCP Web Search
 - [ ] **Fase 5 — Voz (FUTURO):** ElevenLabs (voz), Claude Vision (imagens)
 
@@ -462,13 +472,13 @@ VAPID_CLAIMS_EMAIL=
 - **`cod_usuario` e `cod_pessoa` sem default no banco** — criadas sequencias PostgreSQL manualmente (`usuarios_cod_usuario_seq`, `pessoas_cod_pessoa_seq`). Modelos usam `server_default="nextval('...')"` para que SQLAlchemy omita essas colunas no INSERT
 
 ## Ultima Sessao
-**2026-04-14** — Duas features novas: (1) Sistema de temas Arc Reactor (azul) / Homem de Ferro (vermelho + bordas douradas amber-600) via CSS custom properties + data-theme no html. Zustand persiste no localStorage, main.tsx aplica sincronamente para evitar flash. (2) Modulo de livros completo — upload PDF (pdfplumber), chunking inteligente por paragrafos com deteccao de capitulo, progresso por chunk, resumo ao fim de capitulo (GPT-4o), perguntas de fixacao em modo estudo, memoria automatica ao concluir (Mem0). LivrosPage no frontend com upload drag&drop, CardLivro, Leitor full-screen. Deteccao de "proximo trecho" no chat service para entrega inline. Fix: MissingGreenlet corrigido com selectinload apos commit. Fix borda Iron Man: amber-800 → amber-600 apos feedback visual do Julio.
+**2026-04-18** — Fase 3 concluida 100%. Implementadas tarefas recorrentes por linguagem natural + tela de gerenciamento. Backend: novo modulo `app/modules/tarefas/` (schemas, service, router) usando tabela `tarefas_agendadas` ja criada na Fase 1, com APScheduler CronTrigger e timezone America/Sao_Paulo obrigatorio. Terceiro parser NLP `detectar_tarefa_recorrente` com prompt dedicado no `ia/prompts.py` — agora o chat roda 3 parsers em paralelo (lembrete pontual, tarefa checklist, tarefa recorrente) com prioridade: recorrente > lembrete > tarefa, evitando duplicacao. Marcador `[TAREFA_RECORRENTE_CRIADA: descricao | cron=X]` injetado no system prompt. Startup reagenda todas as tarefas ativas via `reagendar_todas`. Rota: `/api/tarefas-agendadas/*` (escolhida em vez de `/api/tarefas` para nao conflitar com `/api/checklist/tarefas`). Frontend: `tarefasAgendadasService.ts` com helper `cronParaTexto` (converte `0 8 * * *` em "Todo dia as 08:00"), e nova aba "Recorrentes" na `LembretesPage` com CRUD completo — criar (modal com preview cron em tempo real), pausar/ativar, executar agora (teste manual), deletar. Tambem foi feita correcao no CONTEXTO.MD marcando briefing e checklist como ✅ (ja estavam implementados mas nao documentados). Layout mobile da TarefasPage refatorado: navegacao por etapas (listas → tarefas com botao voltar) e PainelDetalhes como bottom sheet.
 
 ## Proximos Passos
-1. **Fase 3 restante** — tarefas recorrentes por linguagem natural + tela de gerenciamento de tarefas agendadas (briefing diario ✅ concluido)
-2. **Fase 4 (Integracoes FUTURO)** — MCP Gmail, Google Calendar, Web Search
-3. **Testar audio no iOS** — verificar se `audio/mp4` funciona no Safari/iPhone
-4. **Upload PDF lento** — processamento sincrono pode travar em PDFs grandes; considerar background task
+1. **Fase 4 (Integracoes)** — MCP Gmail, Google Calendar, Web Search (Fase 3 ✅ 100% concluida)
+2. **Testar audio no iOS** — verificar se `audio/mp4` funciona no Safari/iPhone
+3. **Upload PDF lento** — processamento sincrono pode travar em PDFs grandes; considerar background task
+4. **Validar tarefas recorrentes em producao** — deploy novo modulo tarefas, criar tarefa "todo dia 8h" pelo chat e confirmar push chega
 
 ## Historico de Mudancas
 | Data | Mudanca |
@@ -483,3 +493,4 @@ VAPID_CLAIMS_EMAIL=
 | 2026-04-13 | Layout responsivo mobile — sidebar drawer + overlay + bottom nav + botao menu no header do chat. Modelo fallback: GPT-4o-mini → GPT-4o |
 | 2026-04-14 | Sistema de temas Arc Reactor/Homem de Ferro — CSS vars + data-theme + Zustand persist + pre-React em main.tsx. Bordas douradas amber-600 no tema Iron Man |
 | 2026-04-14 | Modulo livros completo — upload PDF, pdfplumber, chunking por paragrafos, progresso, resumo IA, perguntas estudo, LivrosPage, integracao no chat. 3 novas tabelas: livros, livro_chunks, leitura_progresso |
+| 2026-04-18 | Fase 3 concluida 100% — novo modulo tarefas recorrentes (/api/tarefas-agendadas) com CronTrigger timezone-aware, terceiro parser NLP detectar_tarefa_recorrente em paralelo (prioridade recorrente>lembrete>tarefa), aba "Recorrentes" em LembretesPage com cronParaTexto helper, reagendamento no startup |
