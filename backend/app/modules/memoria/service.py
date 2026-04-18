@@ -8,9 +8,17 @@ Fluxo:
 """
 
 import re
+import unicodedata
 import uuid
 
 from loguru import logger
+
+
+def _normalizar(texto: str) -> str:
+    """Remove acentos e deixa minusculo — Julio costuma digitar sem acento."""
+    nfkd = unicodedata.normalize("NFKD", texto)
+    sem_acento = "".join(c for c in nfkd if not unicodedata.combining(c))
+    return sem_acento.lower()
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -242,18 +250,18 @@ async def _detectar_pessoas_mencionadas(
     if not todas:
         return []
 
-    consulta_lower = consulta.lower()
+    # Normalizar remove acentos dos dois lados — "irmão" casa com "Irmao", "médica" com "Medica"
+    consulta_norm = _normalizar(consulta)
     mencionadas = []
     for pessoa in todas:
-        # Match tanto pelo nome completo quanto pelo primeiro nome
-        nome_lower = pessoa.nome.lower()
-        primeiro_nome = nome_lower.split()[0] if nome_lower else ""
-        relacao_lower = (pessoa.relacao or "").lower()
-        if nome_lower in consulta_lower or (
-            primeiro_nome and len(primeiro_nome) >= 3 and primeiro_nome in consulta_lower
+        nome_norm = _normalizar(pessoa.nome)
+        primeiro_nome = nome_norm.split()[0] if nome_norm else ""
+        relacao_norm = _normalizar(pessoa.relacao or "")
+        if nome_norm in consulta_norm or (
+            primeiro_nome and len(primeiro_nome) >= 3 and primeiro_nome in consulta_norm
         ) or (
-            # Match tambem pela relacao — "minha esposa" deve encontrar a pessoa com relacao="Esposa"
-            relacao_lower and len(relacao_lower) >= 4 and relacao_lower in consulta_lower
+            # Match tambem pela relacao — "minha esposa" encontra a pessoa com relacao="Esposa"
+            relacao_norm and len(relacao_norm) >= 4 and relacao_norm in consulta_norm
         ):
             mencionadas.append(pessoa)
     return mencionadas
