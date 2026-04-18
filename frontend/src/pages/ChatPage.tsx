@@ -84,8 +84,23 @@ export function ChatPage() {
         async () => {
           setStreaming(false)
           setStreamingAtivo(false)
-          const lista = await chatService.listarMensagens(idConversa)
-          setMensagens(lista)
+          // Pequeno delay para garantir que o commit do backend terminou antes do refetch.
+          // Sem isso ha janela onde o GET retorna dados antigos e o frontend sobrescreve
+          // o placeholder com uma lista que ainda nao tem a mensagem recem-enviada.
+          await new Promise((r) => setTimeout(r, 300))
+          try {
+            const lista = await chatService.listarMensagens(idConversa)
+            // Se o refetch trouxe menos mensagens que as visiveis (race condition no banco),
+            // mantem o estado atual ao inves de sobrescrever com dados desatualizados.
+            setMensagens((prev) => {
+              const visiveis = prev.filter((m) => m.id !== '__streaming__')
+              if (lista.length < visiveis.length) return visiveis
+              return lista
+            })
+          } catch {
+            // Em caso de erro no refetch, mantem o placeholder streaming preenchido
+            setMensagens((prev) => prev.filter((m) => m.id !== '__streaming__'))
+          }
           // Atualiza título da conversa na sidebar se for a primeira mensagem
           if (mensagens.length === 0) {
             const conversas = await chatService.listarConversas()
