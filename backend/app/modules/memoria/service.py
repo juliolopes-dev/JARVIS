@@ -7,15 +7,81 @@ Fluxo:
 3. Busca semantica via pgvector quando precisar de contexto
 """
 
+import re
 import uuid
 
 from loguru import logger
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.modules.ia.service import gerar_embedding
 from app.modules.memoria.models import Memoria, Pessoa
 from app.modules.memoria.schemas import PessoaCreate, PessoaUpdate
+
+
+# Instancia global do Mem0 — criar conexao nova a cada mensagem desperdica
+# tempo e recursos (reconecta Postgres, recarrega config, recria clientes OpenAI).
+# Construida preguicosamente na primeira chamada, reusada em todas seguintes.
+_mem0_client = None
+
+
+def get_mem0():
+    """Retorna instancia global do Mem0 (construida sob demanda na primeira chamada)."""
+    global _mem0_client
+    if _mem0_client is not None:
+        return _mem0_client
+
+    from mem0 import Memory
+
+    db_url = settings.database_url
+    match = re.match(
+        r"postgresql\+asyncpg://([^:]+):([^@]+)@([^:]+):(\d+)/(.+)", db_url
+    )
+    db_user, db_pass, db_host, db_port, db_name = match.groups() if match else (
+        "postgres", "", "localhost", "5432", "database"
+    )
+
+    _mem0_client = Memory.from_config(
+        {
+            "vector_store": {
+                "provider": "pgvector",
+                "config": {
+                    "dbname": db_name,
+                    "collection_name": settings.mem0_collection_name,
+                    "host": db_host,
+                    "port": int(db_port),
+                    "user": db_user,
+                    "password": db_pass,
+                    "embedding_model_dims": 1536,
+                },
+            },
+            "llm": {
+                "provider": "openai",
+                "config": {"api_key": settings.openai_api_key, "model": "gpt-4o"},
+            },
+            "embedder": {
+                "provider": "openai",
+                "config": {
+                    "api_key": settings.openai_api_key,
+                    "model": "text-embedding-3-small",
+                },
+            },
+            "custom_prompt": (
+                "Voce e um extrator de fatos pessoais sobre o usuario. "
+                "REGRAS OBRIGATORIAS:\n"
+                "1. Sempre escreva os fatos em Portugues do Brasil.\n"
+                "2. Fatos de LOCALIZACAO: qualquer variacao de 'me mudei', 'agora moro', 'fui para', 'estou em' "
+                "significa UPDATE no fato de cidade/localizacao existente — NUNCA crie novo fato de localizacao se ja existe um.\n"
+                "3. Fatos de IDADE: qualquer nova idade mencionada e UPDATE do fato de idade existente.\n"
+                "4. Fatos de PROFISSAO: novas profissoes ou cargos sao UPDATE do fato de profissao existente.\n"
+                "5. Fatos validos: nome, idade, cidade, profissao, preferencias, relacionamentos, habitos, metas, habilidades.\n"
+                "6. Ignore informacoes genericas sem relacao pessoal direta com o usuario."
+            ),
+        }
+    )
+    logger.info("Mem0 inicializado | collection={}", settings.mem0_collection_name)
+    return _mem0_client
 
 
 async def extrair_e_salvar_memoria(
@@ -28,59 +94,7 @@ async def extrair_e_salvar_memoria(
     Chamado apos cada mensagem do usuario para construir memoria persistente.
     """
     try:
-        # Importar aqui para evitar inicializacao do Mem0 na subida do servidor
-        from mem0 import Memory
-
-        from app.core.config import settings
-
-        # Extrair credenciais do DATABASE_URL (postgresql+asyncpg://user:pass@host:port/db)
-        import re
-        db_url = settings.database_url
-        match = re.match(
-            r"postgresql\+asyncpg://([^:]+):([^@]+)@([^:]+):(\d+)/(.+)", db_url
-        )
-        db_user, db_pass, db_host, db_port, db_name = match.groups() if match else (
-            "postgres", "", "localhost", "5432", "database"
-        )
-
-        mem0 = Memory.from_config(
-            {
-                "vector_store": {
-                    "provider": "pgvector",
-                    "config": {
-                        "dbname": db_name,
-                        "collection_name": settings.mem0_collection_name,
-                        "host": db_host,
-                        "port": int(db_port),
-                        "user": db_user,
-                        "password": db_pass,
-                        "embedding_model_dims": 1536,
-                    },
-                },
-                "llm": {
-                    "provider": "openai",
-                    "config": {"api_key": settings.openai_api_key, "model": "gpt-4o"},
-                },
-                "embedder": {
-                    "provider": "openai",
-                    "config": {
-                        "api_key": settings.openai_api_key,
-                        "model": "text-embedding-3-small",
-                    },
-                },
-                "custom_prompt": (
-                    "Voce e um extrator de fatos pessoais sobre o usuario. "
-                    "REGRAS OBRIGATORIAS:\n"
-                    "1. Sempre escreva os fatos em Portugues do Brasil.\n"
-                    "2. Fatos de LOCALIZACAO: qualquer variacao de 'me mudei', 'agora moro', 'fui para', 'estou em' "
-                    "significa UPDATE no fato de cidade/localizacao existente — NUNCA crie novo fato de localizacao se ja existe um.\n"
-                    "3. Fatos de IDADE: qualquer nova idade mencionada e UPDATE do fato de idade existente.\n"
-                    "4. Fatos de PROFISSAO: novas profissoes ou cargos sao UPDATE do fato de profissao existente.\n"
-                    "5. Fatos validos: nome, idade, cidade, profissao, preferencias, relacionamentos, habitos, metas, habilidades.\n"
-                    "6. Ignore informacoes genericas sem relacao pessoal direta com o usuario."
-                ),
-            }
-        )
+        mem0 = get_mem0()
 
         resultado = mem0.add(
             mensagem,
