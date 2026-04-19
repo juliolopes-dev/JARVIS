@@ -40,3 +40,35 @@ class PessoaResponse(BaseModel):
     criado_em: datetime
 
     model_config = {"from_attributes": True}
+
+
+class EventoCreate(BaseModel):
+    dat_ocorreu: datetime
+    resumo: str
+    categoria: str
+    lojas: list[str] | None = None
+    pessoas_envolvidas: list[uuid.UUID] | None = None
+    metadados: dict | None = None
+
+
+class EventoUpdate(BaseModel):
+    dat_ocorreu: datetime | None = None
+    resumo: str | None = None
+    categoria: str | None = None
+    lojas: list[str] | None = None
+    pessoas_envolvidas: list[uuid.UUID] | None = None
+    metadados: dict | None = None
+
+
+class EventoResponse(BaseModel):
+    id: uuid.UUID
+    dat_ocorreu: datetime
+    resumo: str
+    categoria: str
+    lojas: list[str] | None
+    pessoas_envolvidas: list[uuid.UUID] | None
+    metadados: dict | None
+    flg_ativo: bool
+    criado_em: datetime
+
+    model_config = {"from_attributes": True}

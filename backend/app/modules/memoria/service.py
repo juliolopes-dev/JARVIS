@@ -10,6 +10,7 @@ Fluxo:
 import re
 import unicodedata
 import uuid
+from datetime import datetime
 
 from loguru import logger
 from sqlalchemy import select
@@ -17,8 +18,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.modules.ia.service import gerar_embedding, get_openai
-from app.modules.memoria.models import Memoria, Pessoa
-from app.modules.memoria.schemas import PessoaCreate, PessoaUpdate
+from app.modules.memoria.models import Evento, Memoria, Pessoa
+from app.modules.memoria.schemas import EventoCreate, EventoUpdate, PessoaCreate, PessoaUpdate
 
 
 CATEGORIAS_VALIDAS = {"pessoa", "local", "trabalho", "preferencia", "meta", "fato"}
@@ -435,4 +436,100 @@ async def desativar_pessoa(
         return False
     pessoa.flg_ativo = False
     db.add(pessoa)
+    return True
+
+
+# ===== EVENTOS (memoria episodica) =====
+
+async def criar_evento(
+    dados: EventoCreate, id_usuario: uuid.UUID, db: AsyncSession
+) -> Evento:
+    """Cria evento e gera embedding do resumo para busca semantica."""
+    evento = Evento(id_usuario=id_usuario, **dados.model_dump())
+    try:
+        evento.embedding = await gerar_embedding(dados.resumo)
+    except Exception as e:
+        logger.warning(f"Falha ao gerar embedding do evento: {e}")
+    db.add(evento)
+    await db.flush()
+    return evento
+
+
+async def listar_eventos(
+    id_usuario: uuid.UUID,
+    db: AsyncSession,
+    categoria: str | None = None,
+    loja: str | None = None,
+    id_pessoa: uuid.UUID | None = None,
+    dat_inicio: datetime | None = None,
+    dat_fim: datetime | None = None,
+    pagina: int = 1,
+    por_pagina: int = 50,
+) -> list[Evento]:
+    query = select(Evento).where(
+        Evento.id_usuario == id_usuario,
+        Evento.flg_ativo == True,  # noqa: E712
+    )
+    if categoria:
+        query = query.where(Evento.categoria == categoria)
+    if loja:
+        query = query.where(Evento.lojas.any(loja))
+    if id_pessoa:
+        query = query.where(Evento.pessoas_envolvidas.any(id_pessoa))
+    if dat_inicio:
+        query = query.where(Evento.dat_ocorreu >= dat_inicio)
+    if dat_fim:
+        query = query.where(Evento.dat_ocorreu <= dat_fim)
+
+    offset = (pagina - 1) * por_pagina
+    query = query.order_by(Evento.dat_ocorreu.desc()).offset(offset).limit(por_pagina)
+
+    result = await db.execute(query)
+    return list(result.scalars())
+
+
+async def buscar_evento(
+    id_evento: uuid.UUID, id_usuario: uuid.UUID, db: AsyncSession
+) -> Evento | None:
+    result = await db.execute(
+        select(Evento).where(
+            Evento.id == id_evento,
+            Evento.id_usuario == id_usuario,
+        )
+    )
+    return result.scalar_one_or_none()
+
+
+async def atualizar_evento(
+    id_evento: uuid.UUID,
+    dados: EventoUpdate,
+    id_usuario: uuid.UUID,
+    db: AsyncSession,
+) -> Evento | None:
+    evento = await buscar_evento(id_evento, id_usuario, db)
+    if not evento:
+        return None
+
+    campos = dados.model_dump(exclude_none=True)
+    for campo, valor in campos.items():
+        setattr(evento, campo, valor)
+
+    if "resumo" in campos:
+        try:
+            evento.embedding = await gerar_embedding(evento.resumo)
+        except Exception as e:
+            logger.warning(f"Falha ao regenerar embedding do evento: {e}")
+
+    db.add(evento)
+    return evento
+
+
+async def desativar_evento(
+    id_evento: uuid.UUID, id_usuario: uuid.UUID, db: AsyncSession
+) -> bool:
+    evento = await buscar_evento(id_evento, id_usuario, db)
+    if not evento:
+        return False
+    evento.flg_ativo = False
+    db.add(evento)
     return True

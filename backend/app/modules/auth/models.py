@@ -27,3 +27,4 @@ class Usuario(Base):
     conversas: Mapped[list["Conversa"]] = relationship(back_populates="usuario")  # noqa: F821
     memorias: Mapped[list["Memoria"]] = relationship(back_populates="usuario")  # noqa: F821
     pessoas: Mapped[list["Pessoa"]] = relationship(back_populates="usuario")  # noqa: F821
+    eventos: Mapped[list["Evento"]] = relationship(back_populates="usuario")  # noqa: F821
