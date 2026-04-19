@@ -93,7 +93,7 @@ export function CustosPage() {
               className={cn(
                 'px-3 py-1.5 text-xs rounded border transition-colors cursor-pointer',
                 periodo === p.valor
-                  ? 'bg-accent/10 border-accent text-accent'
+                  ? 'bg-accent/10 border-accent/60 text-accent'
                   : 'border-surface-border text-text-muted hover:text-text-primary hover:bg-surface-overlay'
               )}
             >
