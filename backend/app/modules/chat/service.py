@@ -97,22 +97,27 @@ async def enviar_mensagem_stream(
     db.add(msg_usuario)
     await db.flush()
 
-    # 2. Detectar lembrete, tarefa de checklist e tarefa recorrente em paralelo
+    # 2. Detectar lembrete, tarefa, recorrente e evento em paralelo
     import asyncio
-    lembrete_info, tarefa_info, recorrente_info = await asyncio.gather(
+    lembrete_info, tarefa_info, recorrente_info, evento_info = await asyncio.gather(
         ia_service.detectar_lembrete(conteudo),
         ia_service.detectar_tarefa(conteudo),
         ia_service.detectar_tarefa_recorrente(conteudo),
+        ia_service.detectar_evento(conteudo),
     )
     logger.info(
-        "Deteccao | lembrete={} | tarefa={} | recorrente={}",
-        lembrete_info, tarefa_info, recorrente_info,
+        "Deteccao | lembrete={} | tarefa={} | recorrente={} | evento={}",
+        lembrete_info, tarefa_info, recorrente_info, evento_info,
     )
 
     # Prioridade: recorrente > lembrete > tarefa (evita duplicacao se o parser
     # de lembrete pontual acidentalmente aceitar um recorrente)
     if recorrente_info:
         lembrete_info = None
+
+    # Evento nao coexiste com lembrete/tarefa/recorrente (relato vs futuro)
+    if lembrete_info or tarefa_info or recorrente_info:
+        evento_info = None
 
     confirmacao_lembrete = ""
     if lembrete_info:
@@ -202,6 +207,51 @@ async def enviar_mensagem_stream(
         except Exception as e:
             logger.warning("Falha ao criar tarefa recorrente via chat: {} | dados={}", str(e), recorrente_info)
 
+    confirmacao_evento = ""
+    if evento_info:
+        try:
+            from datetime import datetime, timedelta
+            from zoneinfo import ZoneInfo
+            from app.core.database import AsyncSessionLocal
+            from app.modules.memoria.schemas import EventoCreate
+            from app.modules.memoria.service import criar_evento
+
+            # Resolve "quando" para timestamp
+            brt = ZoneInfo("America/Sao_Paulo")
+            quando_raw = (evento_info.get("quando") or "hoje").lower()
+            agora_brt = datetime.now(brt)
+            if quando_raw == "ontem":
+                dat_ocorreu = agora_brt - timedelta(days=1)
+            elif quando_raw == "hoje":
+                dat_ocorreu = agora_brt
+            else:
+                try:
+                    dat_ocorreu = datetime.fromisoformat(quando_raw)
+                    if dat_ocorreu.tzinfo is None:
+                        dat_ocorreu = dat_ocorreu.replace(tzinfo=brt)
+                except ValueError:
+                    dat_ocorreu = agora_brt
+
+            lojas = evento_info.get("lojas") or None
+            if isinstance(lojas, list) and len(lojas) == 0:
+                lojas = None
+
+            async with AsyncSessionLocal() as db_evt:
+                dados_evt = EventoCreate(
+                    dat_ocorreu=dat_ocorreu,
+                    resumo=evento_info["resumo"],
+                    categoria=evento_info.get("categoria", "outro"),
+                    lojas=lojas,
+                )
+                evt = await criar_evento(dados_evt, id_usuario, db_evt)
+                await db_evt.commit()
+                dat_fmt = dat_ocorreu.astimezone(brt).strftime("%d/%m/%Y")
+                confirmacao_evento = (
+                    f"\n\n[EVENTO_REGISTRADO: {evt.resumo} | {evt.categoria} | {dat_fmt}]"
+                )
+        except Exception as e:
+            logger.warning("Falha ao registrar evento via chat: {} | dados={}", str(e), evento_info)
+
     # 2c. Detectar pedido de proximo trecho de livro
     confirmacao_leitura = ""
     conteudo_lower = conteudo.lower().strip()
@@ -279,7 +329,7 @@ async def enviar_mensagem_stream(
     )
 
     # 5. Montar mensagens para a IA (incluir confirmacoes se houver)
-    conteudo_ia = conteudo + confirmacao_lembrete + confirmacao_tarefa + confirmacao_recorrente + confirmacao_leitura
+    conteudo_ia = conteudo + confirmacao_lembrete + confirmacao_tarefa + confirmacao_recorrente + confirmacao_evento + confirmacao_leitura
     mensagens_ia = contexto_redis + [{"role": "user", "content": conteudo_ia}]
 
     # 6. Streaming da resposta

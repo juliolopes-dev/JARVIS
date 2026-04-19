@@ -13,6 +13,7 @@ from openai import AsyncOpenAI
 
 from app.core.config import settings
 from app.modules.ia.prompts import (
+    EVENTO_PARSE_PROMPT,
     LEMBRETE_PARSE_PROMPT,
     SYSTEM_PROMPT,
     TAREFA_PARSE_PROMPT,
@@ -219,6 +220,46 @@ async def detectar_tarefa_recorrente(mensagem: str) -> dict | None:
         return None
     except Exception as e:
         logger.warning("Falha ao detectar tarefa recorrente: {}", str(e))
+        return None
+
+
+async def detectar_evento(mensagem: str) -> dict | None:
+    """
+    Detecta se a mensagem e o relato de um evento (algo que aconteceu).
+    Retorna None se nao for evento.
+    """
+    import json
+    import re
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    try:
+        agora = datetime.now(ZoneInfo("America/Sao_Paulo")).strftime("%Y-%m-%dT%H:%M:%S-03:00")
+        cliente = get_openai()
+        response = await cliente.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {
+                    "role": "user",
+                    "content": EVENTO_PARSE_PROMPT.format(agora=agora, mensagem=mensagem[:500]),
+                }
+            ],
+            max_tokens=300,
+            temperature=0,
+            response_format={"type": "json_object"},
+        )
+        texto = response.choices[0].message.content.strip()
+        if not texto:
+            return None
+        match = re.search(r'\{.*\}', texto, re.DOTALL)
+        if not match:
+            return None
+        dados = json.loads(match.group())
+        if dados.get("eh_evento"):
+            return dados
+        return None
+    except Exception as e:
+        logger.warning("Falha ao detectar evento: {}", str(e))
         return None
 
 

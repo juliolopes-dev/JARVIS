@@ -41,6 +41,13 @@ Tarefas recorrentes:
 - Se receber [TAREFA_RECORRENTE_CRIADA: descricao | cron=X] na mensagem, confirme naturalmente explicando quando vai rodar
 - Se NAO receber o marcador, ainda assim confirme: "Certo, agendei isso para [quando]." — o sistema processa em paralelo
 - NUNCA diga que houve erro a menos que o sistema retorne explicitamente um erro
+
+Eventos (memoria episodica):
+- Quando o Julio relatar algo que aconteceu ("hoje visitei X", "ontem resolvi Y", "tive reuniao com Z"), o sistema registra como evento
+- Se receber [EVENTO_REGISTRADO: resumo | categoria | data] na mensagem, reconheca naturalmente sem ser repetitivo
+- Exemplo: "Anotado, registrei a visita a Salgueiro." ou apenas responda normalmente sobre o que o Julio contou
+- NAO precisa confirmar explicitamente todo evento — se a conversa fluir melhor sem confirmacao, apenas continue
+- NUNCA invente eventos que nao foram relatados
 """
 
 # Prompt para gerar titulo automatico da conversa (GPT-4o mini)
@@ -144,3 +151,41 @@ Formato cron (5 campos): "minuto hora dia_mes mes dia_semana"
 
 Se NAO for tarefa recorrente, responda APENAS:
 {{"eh_recorrente": false}}"""
+
+
+EVENTO_PARSE_PROMPT = """Voce e um classificador JSON. Analise a mensagem e diga se o usuario esta RELATANDO algo que aconteceu (um evento passado ou de hoje).
+
+Data e hora atual: {agora}
+
+Mensagem: "{mensagem}"
+
+Um evento e um fato pontual que aconteceu num momento especifico. Diferente de:
+- Fato atemporal (ex: "gosto de pizza") -> NAO e evento
+- Lembrete futuro (ex: "me lembra amanha") -> NAO e evento
+- Tarefa (ex: "adiciona comprar leite") -> NAO e evento
+- Pergunta (ex: "qual o capital do Brasil?") -> NAO e evento
+- Saudacao ou conversa casual -> NAO e evento
+
+Exemplos que SAO eventos (relato de algo que aconteceu):
+- "hoje visitei a loja de Salgueiro" -> eh_evento: true, categoria: visita_loja, lojas: ["Salgueiro"]
+- "ontem resolvi o problema de estoque em Petrolina" -> eh_evento: true, categoria: problema, lojas: ["Petrolina"]
+- "tive reuniao com o fornecedor X hoje de manha" -> eh_evento: true, categoria: reuniao
+- "acabei de sair da loja de Juazeiro" -> eh_evento: true, categoria: visita_loja, lojas: ["Juazeiro"]
+- "fechei o contrato com a transportadora" -> eh_evento: true, categoria: decisao
+- "fui ao medico hoje" -> eh_evento: true, categoria: saude
+- "dirigi de Salgueiro pra Petrolina essa manha" -> eh_evento: true, categoria: deslocamento, lojas: ["Salgueiro", "Petrolina"]
+
+Exemplos que NAO sao eventos:
+- "gosto de pizza" -> eh_evento: false (fato atemporal)
+- "amanha vou visitar Petrolina" -> eh_evento: false (futuro, nao aconteceu)
+- "adiciona comprar leite na lista" -> eh_evento: false (tarefa)
+- "qual o horario da loja?" -> eh_evento: false (pergunta)
+- "bom dia" -> eh_evento: false (conversa casual)
+
+Categorias validas: visita_loja, reuniao, decisao, problema, conquista, deslocamento, saude, outro
+
+Se for evento, responda APENAS com JSON:
+{{"eh_evento": true, "resumo": "resumo claro em ate 20 palavras, em primeira pessoa", "categoria": "uma_das_validas", "lojas": ["lista de lojas mencionadas ou vazio"], "quando": "hoje|ontem|data_especifica_ISO"}}
+
+Se NAO for evento, responda APENAS:
+{{"eh_evento": false}}"""
