@@ -169,6 +169,8 @@ async def extrair_e_salvar_memoria(
             metadata={"fonte": "chat"},
         )
 
+        logger.info("Mem0 resultado | msg={} | results={}", mensagem[:80], resultado)
+
         # Espelhar fatos no PostgreSQL (para busca semantica direta via pgvector)
         if resultado and "results" in resultado:
             for item in resultado["results"]:
