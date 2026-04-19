@@ -233,8 +233,8 @@ export function MemoriaPage() {
               className={cn(
                 'px-2.5 py-1 rounded-full text-xs border transition-colors cursor-pointer',
                 categoria === c.valor
-                  ? 'bg-accent/15 border-accent/40 text-accent'
-                  : 'bg-transparent border-surface-border text-text-muted hover:text-text-primary hover:border-surface-muted'
+                  ? 'bg-accent/10 border-accent/60 text-accent'
+                  : 'bg-transparent border-surface-border text-text-muted hover:text-text-primary hover:bg-surface-overlay'
               )}
             >
               {c.label}
@@ -253,8 +253,8 @@ export function MemoriaPage() {
               className={cn(
                 'px-2.5 py-1 rounded-full text-xs border transition-colors cursor-pointer',
                 categoriaEvento === c.valor
-                  ? 'bg-accent/15 border-accent/40 text-accent'
-                  : 'bg-transparent border-surface-border text-text-muted hover:text-text-primary hover:border-surface-muted'
+                  ? 'bg-accent/10 border-accent/60 text-accent'
+                  : 'bg-transparent border-surface-border text-text-muted hover:text-text-primary hover:bg-surface-overlay'
               )}
             >
               {c.label}

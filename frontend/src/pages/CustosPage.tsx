@@ -91,10 +91,10 @@ export function CustosPage() {
               key={p.valor}
               onClick={() => setPeriodo(p.valor)}
               className={cn(
-                'px-3 py-1.5 text-xs rounded border transition-colors cursor-pointer',
+                'px-2.5 py-1 text-xs rounded-full border transition-colors cursor-pointer',
                 periodo === p.valor
                   ? 'bg-accent/10 border-accent/60 text-accent'
-                  : 'border-surface-border text-text-muted hover:text-text-primary hover:bg-surface-overlay'
+                  : 'bg-transparent border-surface-border text-text-muted hover:text-text-primary hover:bg-surface-overlay'
               )}
             >
               {p.label}
