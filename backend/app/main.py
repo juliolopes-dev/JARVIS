@@ -20,6 +20,7 @@ from app.modules.checklist.router import router as checklist_router
 from app.modules.config.router import router as config_router
 from app.modules.livros.router import router as livros_router
 from app.modules.tarefas.router import router as tarefas_router
+from app.modules.custos.router import router as custos_router
 
 
 # ─── Loguru ──────────────────────────────────────────────────────────────────
@@ -138,6 +139,7 @@ app.include_router(checklist_router, prefix="/api/checklist", tags=["checklist"]
 app.include_router(config_router, prefix="/api/config", tags=["config"])
 app.include_router(livros_router, prefix="/api/livros", tags=["livros"])
 app.include_router(tarefas_router, prefix="/api/tarefas-agendadas", tags=["tarefas-agendadas"])
+app.include_router(custos_router, prefix="/api", tags=["custos"])
 
 
 @app.get("/api/health", tags=["sistema"])

@@ -10,6 +10,7 @@ import { ConfigPage } from '@/pages/ConfigPage'
 import { TarefasPage } from '@/pages/TarefasPage'
 import { NotificacoesPage } from '@/pages/NotificacoesPage'
 import { LivrosPage } from '@/pages/LivrosPage'
+import { CustosPage } from '@/pages/CustosPage'
 import { Spinner } from '@/components/ui/Spinner'
 
 function RotaPrivada({ children }: { children: React.ReactNode }) {
@@ -60,6 +61,7 @@ export default function App() {
           <Route path="memoria" element={<MemoriaPage />} />
           <Route path="config" element={<ConfigPage />} />
           <Route path="livros" element={<LivrosPage />} />
+          <Route path="custos" element={<CustosPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

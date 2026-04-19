@@ -580,15 +580,125 @@ Lista de 10 features ordenadas por impacto real no dia-a-dia. Serao desenvolvida
 - pgvector precisou ser ativado manualmente na VPS via `CREATE EXTENSION IF NOT EXISTS vector`
 - **passlib incompativel com bcrypt 5.x** — substituido por `bcrypt` direto (sem passlib). `hash_senha` e `verificar_senha` em `app/core/security.py` usam `bcrypt.hashpw`/`bcrypt.checkpw` diretamente
 - **`cod_usuario` e `cod_pessoa` sem default no banco** — criadas sequencias PostgreSQL manualmente (`usuarios_cod_usuario_seq`, `pessoas_cod_pessoa_seq`). Modelos usam `server_default="nextval('...')"` para que SQLAlchemy omita essas colunas no INSERT
+- **`server_default=func.now()` empata timestamps na mesma transacao** — usuario e assistente salvos no mesmo request do chat ficavam com `criado_em` identicos. Resolvido com desempate secundario `ORDER BY criado_em DESC, papel ASC` + `reversed()` em `listar_mensagens`
 
 ## Ultima Sessao
-**2026-04-18** — Fase 3 concluida 100%. Implementadas tarefas recorrentes por linguagem natural + tela de gerenciamento. Backend: novo modulo `app/modules/tarefas/` (schemas, service, router) usando tabela `tarefas_agendadas` ja criada na Fase 1, com APScheduler CronTrigger e timezone America/Sao_Paulo obrigatorio. Terceiro parser NLP `detectar_tarefa_recorrente` com prompt dedicado no `ia/prompts.py` — agora o chat roda 3 parsers em paralelo (lembrete pontual, tarefa checklist, tarefa recorrente) com prioridade: recorrente > lembrete > tarefa, evitando duplicacao. Marcador `[TAREFA_RECORRENTE_CRIADA: descricao | cron=X]` injetado no system prompt. Startup reagenda todas as tarefas ativas via `reagendar_todas`. Rota: `/api/tarefas-agendadas/*` (escolhida em vez de `/api/tarefas` para nao conflitar com `/api/checklist/tarefas`). Frontend: `tarefasAgendadasService.ts` com helper `cronParaTexto` (converte `0 8 * * *` em "Todo dia as 08:00"), e nova aba "Recorrentes" na `LembretesPage` com CRUD completo — criar (modal com preview cron em tempo real), pausar/ativar, executar agora (teste manual), deletar. Tambem foi feita correcao no CONTEXTO.MD marcando briefing e checklist como ✅ (ja estavam implementados mas nao documentados). Layout mobile da TarefasPage refatorado: navegacao por etapas (listas → tarefas com botao voltar) e PainelDetalhes como bottom sheet.
+**2026-04-19** — Fix de ordem de mensagens no chat. Bug: resposta do Jarvis aparecia ACIMA da mensagem do usuario na UI. Causa raiz: `server_default=func.now()` no PostgreSQL retorna timestamp do inicio da transacao (nao do INSERT), entao `msg_usuario` e `msg_assistente` salvos no mesmo request do `enviar_mensagem_stream` ficavam com `criado_em` identicos — a ordenacao por `criado_em.desc()` virava indeterministica. Correcao em `backend/app/modules/chat/service.py:listar_mensagens`: adicionado desempate `Mensagem.papel.asc()` na query DESC (combinado com `reversed()` no fim, `user` volta a vir antes de `assistant` no mesmo timestamp). Dois commits necessarios: primeira tentativa usou `papel.desc()` que inverteu o sentido errado, corrigido com segundo commit. Deploy via EasyPanel automatico apos push.
 
 ## Proximos Passos
 1. **Fase 4 (Integracoes)** — MCP Gmail, Google Calendar, Web Search (Fase 3 ✅ 100% concluida)
 2. **Testar audio no iOS** — verificar se `audio/mp4` funciona no Safari/iPhone
 3. **Upload PDF lento** — processamento sincrono pode travar em PDFs grandes; considerar background task
 4. **Validar tarefas recorrentes em producao** — deploy novo modulo tarefas, criar tarefa "todo dia 8h" pelo chat e confirmar push chega
+
+## Ideias Futuras (Fase 5+)
+- **Execucao autonoma no PC local** — permitir que o Jarvis execute tarefas no computador do usuario (abrir programa, responder email, extrair dado de site). 3 caminhos possiveis, do mais simples ao mais poderoso:
+  1. **Agente Python local + fila no backend** — script rodando na bandeja do Windows, conectado via WebSocket, executa comandos via `subprocess`/`pyautogui`. Cobre 80% dos casos (abrir programa, rodar script, mover arquivo)
+  2. **MCP local** — servidor MCP na maquina do usuario com ferramentas customizadas (filesystem, shell, apps). Requer ligar tool calling no Jarvis (hoje so retorna texto)
+  3. **Computer Use da Anthropic** — Claude ve screenshot da tela e controla mouse/teclado. E o que o Clawbro (clawbro.ai) usa. Custo alto (cada screenshot e input de imagem), mas flexivel para qualquer tarefa visual
+- **Diferencial do Jarvis vs Clawbro:** prompt personalizado, memoria Mem0 do contexto pessoal, eventos+pessoas+lembretes ja integrados, APScheduler para tarefas autonomas. Clawbro e generico; o Jarvis teria contexto completo do usuario.
+- **Ordem recomendada:** comecar pelo caminho 1 quando chegar a fase, migrar para 2 ou 3 so se bater na limitacao real.
+
+## Fase 5 — Agentes Autonomos (Roadmap)
+
+**Objetivo:** transformar o Jarvis de "assistente reativo" (responde quando o usuario fala) em "plataforma de agentes autonomos" (agentes independentes rodando em background, com memoria dedicada e ferramentas especificas, reportando resultados ao usuario).
+
+### Decisao de Modelos (atualizar arquitetura ao iniciar Fase 5)
+
+Arquitetura hibrida — modelo certo para cada uso:
+
+| Uso | Modelo | Por que |
+|---|---|---|
+| Chat principal (conversa com o Julio) | **Claude Sonnet 4.6/4.7** | Qualidade de conversa, coerencia em contexto longo, portugues natural, subtexto emocional. Custa ~3x GPT-4o mas vale para 1 usuario (R$ 30-80/mes diferenca) |
+| Parsers NLP (detectar_lembrete, tarefa, evento) | **GPT-4o mini** | Response_format=json_object funciona bem, latencia baixa, custo baixo. Prompt curto e estruturado — Claude seria overkill |
+| Cerebro dos agentes autonomos | **Claude Sonnet 4.x** | Tool calling em loop de multiplos passos e ponto fraco do GPT-4o (aluciana parametros, entra em loop). Claude e muito mais confiavel |
+| Tarefas simples (titulo de conversa, classificacao) | **GPT-4o mini** | Barato e rapido |
+| Transcricao de audio | **Whisper-1** | Ja funciona |
+| Embeddings | **text-embedding-3-small** | Ja funciona |
+
+**Atual:** Jarvis usa GPT-4o em tudo (chat, parsers, classificacao). Mudar para hibrido no inicio da Fase 5.
+
+### Arquitetura do Modulo de Agentes
+
+**Novo modulo `backend/app/modules/agentes/`:**
+```
+agentes/
+├── models.py         # tabelas 'agentes' + 'execucoes_agente'
+├── service.py        # registrar, agendar, executar agente
+├── router.py         # /api/agentes/* (CRUD + disparar manual + listar execucoes)
+├── base.py           # classe Agente (loop de execucao com tool calling)
+└── tipos/            # implementacao de cada agente especializado
+```
+
+**2 tabelas novas:**
+- `agentes` — id, cod_agente, nome, tipo, system_prompt (versionado), ferramentas[] (nomes das tools permitidas), cron (APScheduler), flg_ativo, criado_em
+- `execucoes_agente` — id, id_agente, dat_inicio, dat_fim, sts_execucao (rodando/sucesso/falha), passos jsonb (log de cada tool call + resultado), resultado, tokens_consumidos
+
+**3 camadas de memoria por agente:**
+1. **Sistema** — prompt fixo (quem ele e, o que faz)
+2. **Longo prazo** — Mem0 com namespace proprio (`agente_{id}`) para fatos e padroes que aprendeu
+3. **Execucao** — log em `execucoes_agente.passos` (o que fez, o que deu certo/errado)
+
+### Biblioteca de Ferramentas (tools expostas aos agentes)
+
+Definidas no backend, cada agente recebe **so as que precisa** (principio do menor privilegio):
+- `consultar_erp(loja, produto)` — via MCP `erp-db` ja existente
+- `ler_gmail(filtros)` — via OAuth Gmail (Fase 4)
+- `consultar_calendar(data)` — Google Calendar (Fase 4)
+- `criar_lembrete(titulo, quando)` — modulo lembretes atual
+- `buscar_memoria(query)` — Mem0 + pgvector
+- `salvar_memoria(fato)` — Mem0
+- `pesquisar_web(query)` — Brave Search ou similar
+- `enviar_push(mensagem)` — Web Push atual
+- `executar_sql_readonly(query)` — com permissoes restritas
+
+### Pre-requisito Tecnico Critico: Tool Calling
+
+Hoje o modulo `ia/service.py` chama Claude/GPT apenas com `messages.create(...)` retornando texto. Para agentes autonomos precisa ligar **tool calling** (API do Claude permite, esta so nao usado). Isso vai ser o primeiro PR da Fase 5.
+
+### Ideias de Agentes (ainda NAO decidido qual sera o primeiro)
+
+Opcoes possiveis, todas validas para o contexto do Julio (supervisor de logistica, 5 lojas):
+
+- **Monitor de Estoque** — roda diario 7h, consulta ERP das 5 lojas, identifica rupturas/baixa cobertura, cria lembretes. Vantagem: MCP `erp-db` ja existe, resultado pratico imediato
+- **Analise de Visitas** — roda sexta 18h, le eventos da semana, identifica lojas nao visitadas, gera relatorio. Usa tabela `eventos` ja criada na Fase D
+- **Triagem de Email** — roda de hora em hora, le Gmail, classifica urgencias, notifica so o que importa. Requer Fase 4 (Gmail MCP) pronta
+- **Briefing Matinal Inteligente** — evolucao do briefing atual, mas agora com raciocinio sobre eventos+pessoas+lembretes+estoque, prioriza e resume
+- **Pesquisador sob Demanda** — usuario fala "pesquisa sobre X", agente busca web + memoria, resume, salva no Mem0, devolve resumo
+- **Revisor de Decisoes** — roda semanal, le eventos de categoria `decisao`, avalia se ainda fazem sentido, sugere ajustes
+
+**A definir com o Julio:** qual agente sera o primeiro (prova de conceito). Criterio: ter resultado pratico imediato, usar infra que ja existe, ser simples o suficiente para validar o modulo agentes antes de construir agentes mais complexos.
+
+### Ordem de Implementacao
+
+**Fase 5a — Fundacao (prova de conceito com 1 agente):**
+1. Ligar tool calling no modulo `ia` (Claude + GPT suportam, so nao usado)
+2. Criar modulo `agentes/` com modelos + base class + loop de execucao
+3. Implementar **1 agente** como prova de conceito (a ser definido)
+4. Validar: executa sozinho, loga passos, reporta resultado
+
+**Fase 5b — Expansao (2-3 agentes reais):**
+5. Mais agentes especializados
+6. Dashboard no frontend: listar agentes, ver execucoes, ler logs, disparar manual
+7. Self-reflection: agente avalia se teve sucesso, tenta de novo se nao deu
+
+**Fase 5c — Orquestracao (futuro distante):**
+8. Agente Planejador que cria outros agentes sob demanda
+9. Agentes conversando entre si para resolver tarefa complexa (multi-agente)
+10. Integracao com execucao no PC local (ver "Execucao autonoma" acima)
+
+### Por que a base do Jarvis e ideal
+
+~70% da infra de agentes autonomos ja esta pronta:
+- Banco PostgreSQL + pgvector ✅
+- Auth JWT ✅
+- APScheduler com SQLAlchemyJobStore ✅
+- Mem0 + embeddings ✅
+- Chat + streaming SSE ✅
+- Web Push ✅
+- MCP do ERP ✅
+
+**Falta principalmente:** tool calling + modulo agentes + ferramentas especificas. Comecar do zero (estilo Clawbro/AutoGPT genericos) seria reinventar toda essa infra sem ter o contexto pessoal do usuario.
 
 ## Historico de Mudancas
 | Data | Mudanca |
@@ -604,3 +714,5 @@ Lista de 10 features ordenadas por impacto real no dia-a-dia. Serao desenvolvida
 | 2026-04-14 | Sistema de temas Arc Reactor/Homem de Ferro — CSS vars + data-theme + Zustand persist + pre-React em main.tsx. Bordas douradas amber-600 no tema Iron Man |
 | 2026-04-14 | Modulo livros completo — upload PDF, pdfplumber, chunking por paragrafos, progresso, resumo IA, perguntas estudo, LivrosPage, integracao no chat. 3 novas tabelas: livros, livro_chunks, leitura_progresso |
 | 2026-04-18 | Fase 3 concluida 100% — novo modulo tarefas recorrentes (/api/tarefas-agendadas) com CronTrigger timezone-aware, terceiro parser NLP detectar_tarefa_recorrente em paralelo (prioridade recorrente>lembrete>tarefa), aba "Recorrentes" em LembretesPage com cronParaTexto helper, reagendamento no startup |
+| 2026-04-19 | Fase D (memoria episodica) completa — tabela eventos (dat_ocorreu, resumo, categoria, lojas, pessoas_envolvidas, embedding 1536), quarto parser NLP detectar_evento em paralelo com criterio amplo, marcador [EVENTO_REGISTRADO], backfill idempotente de historico (7 eventos criados), aba Eventos na MemoriaPage com filtros por categoria |
+| 2026-04-19 | Fix ordem de mensagens no chat — server_default=func.now() empatava timestamps user+assistant na mesma transacao, virando ordem indeterministica. Desempate por `papel.asc()` na query DESC com `reversed()` no fim |

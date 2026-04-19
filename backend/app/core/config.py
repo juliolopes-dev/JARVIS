@@ -51,6 +51,7 @@ class Settings(BaseSettings):
     # APIs de IA
     anthropic_api_key: str
     openai_api_key: str
+    openai_admin_key: str = ""  # Usada apenas para consultar /v1/organization/usage/*
 
     # Mem0
     mem0_collection_name: str = "jarvis_memories"
