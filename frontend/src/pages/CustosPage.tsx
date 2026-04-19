@@ -53,7 +53,13 @@ export function CustosPage() {
       setResumo(atual)
       setMesAnterior(anterior)
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Erro ao carregar custos'
+      let msg = 'Erro ao carregar custos'
+      if (e && typeof e === 'object' && 'response' in e) {
+        const resp = (e as { response?: { data?: { detail?: string } } }).response
+        if (resp?.data?.detail) msg = resp.data.detail
+      } else if (e instanceof Error) {
+        msg = e.message
+      }
       setErro(msg)
     } finally {
       setCarregando(false)
