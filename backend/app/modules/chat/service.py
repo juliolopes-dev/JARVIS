@@ -68,10 +68,12 @@ async def listar_mensagens(
     # Busca as N mais recentes (desc) e devolve em ordem cronologica (asc).
     # Sem isso, em conversas com mais de `por_pagina` mensagens a pagina 1
     # traria apenas as mais antigas e as recem-enviadas ficariam invisiveis.
+    # Desempate por papel: 'user' vem antes de 'assistant' quando criado_em empata
+    # (SQLAlchemy salva os dois dentro do mesmo request e o timestamp pode colidir).
     result = await db.execute(
         select(Mensagem)
         .where(Mensagem.id_conversa == id_conversa)
-        .order_by(Mensagem.criado_em.desc())
+        .order_by(Mensagem.criado_em.desc(), Mensagem.papel.desc())
         .offset((pagina - 1) * por_pagina)
         .limit(por_pagina)
     )
