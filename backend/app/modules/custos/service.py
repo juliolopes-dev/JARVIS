@@ -106,7 +106,7 @@ async def _chamar_usage_api(
         "end_time": end_unix,
         "bucket_width": bucket_width,
         "group_by": ["model"],
-        "limit": 180,
+        "limit": 31,
     }
 
     todos_buckets: list[dict] = []
