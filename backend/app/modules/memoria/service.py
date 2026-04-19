@@ -12,6 +12,16 @@ import unicodedata
 import uuid
 
 from loguru import logger
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.config import settings
+from app.modules.ia.service import gerar_embedding, get_openai
+from app.modules.memoria.models import Memoria, Pessoa
+from app.modules.memoria.schemas import PessoaCreate, PessoaUpdate
+
+
+CATEGORIAS_VALIDAS = {"pessoa", "local", "trabalho", "preferencia", "meta", "fato"}
 
 
 def _normalizar(texto: str) -> str:
@@ -21,13 +31,10 @@ def _normalizar(texto: str) -> str:
     return sem_acento.lower()
 
 
-CATEGORIAS_VALIDAS = {"pessoa", "local", "trabalho", "preferencia", "meta", "fato"}
-
-
 def _extrair_categoria(conteudo: str) -> tuple[str, str]:
     """
     Se o conteudo vier prefixado com [categoria], separa e retorna (categoria, texto_limpo).
-    Senao, classifica como 'fato'.
+    Senao, retorna ("", conteudo) — cabe ao chamador classificar via LLM.
     """
     match = re.match(r"^\s*\[(\w+)\]\s*(.+)$", conteudo, re.DOTALL)
     if match:
@@ -35,14 +42,40 @@ def _extrair_categoria(conteudo: str) -> tuple[str, str]:
         texto = match.group(2).strip()
         if cat in CATEGORIAS_VALIDAS:
             return cat, texto
-    return "fato", conteudo.strip()
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+    return "", conteudo.strip()
 
-from app.core.config import settings
-from app.modules.ia.service import gerar_embedding
-from app.modules.memoria.models import Memoria, Pessoa
-from app.modules.memoria.schemas import PessoaCreate, PessoaUpdate
+
+async def _classificar_via_llm(conteudo: str) -> str:
+    """
+    Fallback: pede ao GPT-4o para classificar o fato numa das categorias validas.
+    Usado quando o Mem0 nao prefixou com [categoria] (ele as vezes ignora o prompt).
+    """
+    try:
+        cliente = get_openai()
+        response = await cliente.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "Classifique o fato pessoal em UMA palavra, escolhendo entre: "
+                        "pessoa, local, trabalho, preferencia, meta, fato. "
+                        "pessoa=dados pessoais; local=onde mora/frequenta; trabalho=profissao/cargo/skills; "
+                        "preferencia=gostos/hobbies/comidas/filmes favoritos; meta=objetivos/planos/sonhos; "
+                        "fato=qualquer outro. Responda SO a palavra, sem pontuacao."
+                    ),
+                },
+                {"role": "user", "content": conteudo},
+            ],
+            max_tokens=5,
+            temperature=0,
+        )
+        resposta = response.choices[0].message.content.strip().lower().strip(".,[]")
+        if resposta in CATEGORIAS_VALIDAS:
+            return resposta
+    except Exception as e:
+        logger.warning("Falha ao classificar memoria: {}", str(e))
+    return "fato"
 
 
 # Instancia global do Mem0 — criar conexao nova a cada mensagem desperdica
@@ -145,8 +178,13 @@ async def extrair_e_salvar_memoria(
                 if not conteudo_raw:
                     continue
 
-                # Parseia o prefixo [categoria] inserido pelo custom_prompt do Mem0
+                logger.debug("Mem0 retornou | evento={} | raw={}", evento, conteudo_raw)
+
+                # Tenta parsear o prefixo [categoria] inserido pelo custom_prompt.
+                # Se o Mem0 ignorou o prompt (acontece), classifica via GPT-4o-mini.
                 categoria, conteudo = _extrair_categoria(conteudo_raw)
+                if not categoria:
+                    categoria = await _classificar_via_llm(conteudo)
                 embedding = await gerar_embedding(conteudo)
 
                 if evento == "ADD":
