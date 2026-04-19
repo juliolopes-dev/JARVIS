@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Brain, Users, Trash2, Plus, X } from 'lucide-react'
+import { Brain, Users, Trash2, Plus, X, Calendar, MapPin } from 'lucide-react'
 import { toast } from 'sonner'
 import { memoriaService } from '@/services/memoriaService'
 import { Badge } from '@/components/ui/Badge'
@@ -7,10 +7,20 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { formatarDataRelativa } from '@/utils/formatDate'
 import { cn } from '@/utils/cn'
-import type { Memoria, Pessoa } from '@/types'
+import type { Evento, Memoria, Pessoa } from '@/types'
 
-type Aba = 'memorias' | 'pessoas'
+type Aba = 'memorias' | 'pessoas' | 'eventos'
 type Categoria = 'todas' | 'pessoa' | 'local' | 'trabalho' | 'preferencia' | 'meta' | 'fato'
+type CategoriaEvento =
+  | 'todas'
+  | 'visita_loja'
+  | 'reuniao'
+  | 'decisao'
+  | 'problema'
+  | 'conquista'
+  | 'deslocamento'
+  | 'saude'
+  | 'outro'
 
 const CATEGORIAS: { valor: Categoria; label: string }[] = [
   { valor: 'todas', label: 'Todas' },
@@ -22,11 +32,25 @@ const CATEGORIAS: { valor: Categoria; label: string }[] = [
   { valor: 'fato', label: 'Outros' },
 ]
 
+const CATEGORIAS_EVENTO: { valor: CategoriaEvento; label: string }[] = [
+  { valor: 'todas', label: 'Todos' },
+  { valor: 'visita_loja', label: 'Visita a loja' },
+  { valor: 'reuniao', label: 'Reunião' },
+  { valor: 'decisao', label: 'Decisão' },
+  { valor: 'problema', label: 'Problema' },
+  { valor: 'conquista', label: 'Conquista' },
+  { valor: 'deslocamento', label: 'Deslocamento' },
+  { valor: 'saude', label: 'Saúde' },
+  { valor: 'outro', label: 'Outros' },
+]
+
 export function MemoriaPage() {
   const [aba, setAba] = useState<Aba>('memorias')
   const [categoria, setCategoria] = useState<Categoria>('todas')
+  const [categoriaEvento, setCategoriaEvento] = useState<CategoriaEvento>('todas')
   const [memorias, setMemorias] = useState<Memoria[]>([])
   const [pessoas, setPessoas] = useState<Pessoa[]>([])
+  const [eventos, setEventos] = useState<Evento[]>([])
   const [carregando, setCarregando] = useState(true)
   const [modalPessoa, setModalPessoa] = useState(false)
   const [pessoaEditando, setPessoaEditando] = useState<Pessoa | null>(null)
@@ -35,8 +59,9 @@ export function MemoriaPage() {
 
   useEffect(() => {
     if (aba === 'memorias') carregarMemorias()
-    else carregarPessoas()
-  }, [aba, categoria])
+    else if (aba === 'pessoas') carregarPessoas()
+    else carregarEventos()
+  }, [aba, categoria, categoriaEvento])
 
   async function carregarMemorias() {
     setCarregando(true)
@@ -60,6 +85,29 @@ export function MemoriaPage() {
       toast.error('Erro ao carregar pessoas')
     } finally {
       setCarregando(false)
+    }
+  }
+
+  async function carregarEventos() {
+    setCarregando(true)
+    try {
+      const filtro = categoriaEvento === 'todas' ? undefined : categoriaEvento
+      const lista = await memoriaService.listarEventos({ categoria: filtro })
+      setEventos(lista)
+    } catch {
+      toast.error('Erro ao carregar eventos')
+    } finally {
+      setCarregando(false)
+    }
+  }
+
+  async function deletarEvento(id: string) {
+    try {
+      await memoriaService.desativarEvento(id)
+      setEventos((prev) => prev.filter((e) => e.id !== id))
+      toast.success('Evento removido')
+    } catch {
+      toast.error('Erro ao remover evento')
     }
   }
 
@@ -142,7 +190,7 @@ export function MemoriaPage() {
 
       {/* Abas */}
       <div className="shrink-0 flex border-b border-surface-border px-6">
-        {(['memorias', 'pessoas'] as Aba[]).map((a) => (
+        {(['memorias', 'pessoas', 'eventos'] as Aba[]).map((a) => (
           <button
             key={a}
             onClick={() => setAba(a)}
@@ -153,15 +201,22 @@ export function MemoriaPage() {
                 : 'border-transparent text-text-muted hover:text-text-secondary'
             )}
           >
-            {a === 'memorias' ? (
+            {a === 'memorias' && (
               <>
                 <Brain size={13} />
                 Fatos
               </>
-            ) : (
+            )}
+            {a === 'pessoas' && (
               <>
                 <Users size={13} />
                 Pessoas
+              </>
+            )}
+            {a === 'eventos' && (
+              <>
+                <Calendar size={13} />
+                Eventos
               </>
             )}
           </button>
@@ -188,18 +243,40 @@ export function MemoriaPage() {
         </div>
       )}
 
+      {/* Filtro de categorias de eventos */}
+      {aba === 'eventos' && (
+        <div className="shrink-0 flex flex-wrap gap-1.5 px-6 py-3 border-b border-surface-border">
+          {CATEGORIAS_EVENTO.map((c) => (
+            <button
+              key={c.valor}
+              onClick={() => setCategoriaEvento(c.valor)}
+              className={cn(
+                'px-2.5 py-1 rounded-full text-xs border transition-colors cursor-pointer',
+                categoriaEvento === c.valor
+                  ? 'bg-accent/15 border-accent/40 text-accent'
+                  : 'bg-transparent border-surface-border text-text-muted hover:text-text-primary hover:border-surface-muted'
+              )}
+            >
+              {c.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Conteúdo */}
       <div className="flex-1 overflow-y-auto p-6">
         {carregando ? (
           <div className="text-sm text-text-muted">Carregando...</div>
         ) : aba === 'memorias' ? (
           <MemoriasLista memorias={memorias} onDeletar={deletarMemoria} />
-        ) : (
+        ) : aba === 'pessoas' ? (
           <PessoasLista
             pessoas={pessoas}
             onDeletar={deletarPessoa}
             onEditar={abrirModalEditarPessoa}
           />
+        ) : (
+          <EventosLista eventos={eventos} onDeletar={deletarEvento} />
         )}
       </div>
 
@@ -294,6 +371,66 @@ function MemoriasLista({
           </div>
           <button
             onClick={() => onDeletar(m.id)}
+            className="shrink-0 opacity-0 group-hover:opacity-100 p-1 rounded text-text-faint hover:text-red-400 hover:bg-red-500/10 transition-all cursor-pointer"
+          >
+            <Trash2 size={13} />
+          </button>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function EventosLista({
+  eventos,
+  onDeletar,
+}: {
+  eventos: Evento[]
+  onDeletar: (id: string) => void
+}) {
+  if (eventos.length === 0) {
+    return (
+      <div className="text-sm text-text-muted">
+        Nenhum evento ainda. O Jarvis registra automaticamente quando você relata algo que aconteceu
+        (ex: "hoje visitei a loja de Salgueiro").
+      </div>
+    )
+  }
+
+  function formatarData(iso: string) {
+    try {
+      const d = new Date(iso)
+      return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    } catch {
+      return iso
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      {eventos.map((e) => (
+        <div
+          key={e.id}
+          className="group flex items-start gap-3 px-4 py-3 rounded-lg border border-surface-border bg-surface-raised hover:border-surface-muted transition-colors"
+        >
+          <div className="flex-1 min-w-0">
+            <p className="text-sm text-text-primary leading-relaxed">{e.resumo}</p>
+            <div className="flex items-center flex-wrap gap-2 mt-2">
+              <Badge variant="default">{e.categoria.replace('_', ' ')}</Badge>
+              <span className="text-2xs text-text-faint flex items-center gap-1">
+                <Calendar size={11} />
+                {formatarData(e.dat_ocorreu)}
+              </span>
+              {e.lojas && e.lojas.length > 0 && (
+                <span className="text-2xs text-text-faint flex items-center gap-1">
+                  <MapPin size={11} />
+                  {e.lojas.join(', ')}
+                </span>
+              )}
+            </div>
+          </div>
+          <button
+            onClick={() => onDeletar(e.id)}
             className="shrink-0 opacity-0 group-hover:opacity-100 p-1 rounded text-text-faint hover:text-red-400 hover:bg-red-500/10 transition-all cursor-pointer"
           >
             <Trash2 size={13} />

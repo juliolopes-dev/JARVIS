@@ -1,5 +1,5 @@
 import { api } from './api'
-import type { Memoria, Pessoa } from '@/types'
+import type { Evento, Memoria, Pessoa } from '@/types'
 
 export const memoriaService = {
   async listarMemorias(categoria?: string, pagina = 1): Promise<Memoria[]> {
@@ -33,5 +33,23 @@ export const memoriaService = {
 
   async desativarPessoa(id: string): Promise<void> {
     await api.delete(`/memoria/pessoas/${id}`)
+  },
+
+  async listarEventos(params?: {
+    categoria?: string
+    loja?: string
+    id_pessoa?: string
+    dat_inicio?: string
+    dat_fim?: string
+    pagina?: number
+  }): Promise<Evento[]> {
+    const res = await api.get<Evento[]>('/memoria/eventos', {
+      params: { ...params, por_pagina: 50 },
+    })
+    return res.data
+  },
+
+  async desativarEvento(id: string): Promise<void> {
+    await api.delete(`/memoria/eventos/${id}`)
   },
 }

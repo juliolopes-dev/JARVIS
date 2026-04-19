@@ -34,6 +34,18 @@ export interface Pessoa {
   criado_em: string
 }
 
+export interface Evento {
+  id: string
+  dat_ocorreu: string
+  resumo: string
+  categoria: string
+  lojas: string[] | null
+  pessoas_envolvidas: string[] | null
+  metadados: Record<string, unknown> | null
+  flg_ativo: boolean
+  criado_em: string
+}
+
 export interface Usuario {
   id: string
   cod_usuario: number
