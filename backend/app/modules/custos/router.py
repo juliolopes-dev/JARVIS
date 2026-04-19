@@ -1,5 +1,6 @@
 """Rotas de consulta de custos de API."""
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
 from loguru import logger
 
@@ -30,8 +31,13 @@ async def obter_resumo(
         return await service.obter_resumo_custos(periodo)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logger.error(f"Erro ao obter custos: {e}")
+    except httpx.HTTPStatusError as e:
+        corpo = e.response.text[:500] if e.response is not None else ""
+        logger.error(f"OpenAI Usage API {e.response.status_code}: {corpo}")
         raise HTTPException(
-            status_code=500, detail="Erro ao consultar API de usage da OpenAI"
+            status_code=502,
+            detail=f"OpenAI respondeu {e.response.status_code}: {corpo}",
         )
+    except Exception as e:
+        logger.exception("Erro ao obter custos")
+        raise HTTPException(status_code=500, detail=f"{type(e).__name__}: {e}")

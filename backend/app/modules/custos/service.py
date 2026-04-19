@@ -115,6 +115,10 @@ async def _chamar_usage_api(
             r = await client.get(url, headers=headers, params=params)
             if r.status_code == 401:
                 raise ValueError("OPENAI_ADMIN_KEY invalida ou sem permissao.")
+            if r.status_code >= 400:
+                logger.error(
+                    f"OpenAI Usage API {endpoint} retornou {r.status_code}: {r.text[:500]}"
+                )
             r.raise_for_status()
             dados = r.json()
             todos_buckets.extend(dados.get("data", []))
