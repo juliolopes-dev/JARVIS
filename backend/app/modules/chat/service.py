@@ -73,7 +73,7 @@ async def listar_mensagens(
     result = await db.execute(
         select(Mensagem)
         .where(Mensagem.id_conversa == id_conversa)
-        .order_by(Mensagem.criado_em.desc(), Mensagem.papel.desc())
+        .order_by(Mensagem.criado_em.desc(), Mensagem.papel.asc())
         .offset((pagina - 1) * por_pagina)
         .limit(por_pagina)
     )
