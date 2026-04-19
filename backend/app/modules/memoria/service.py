@@ -275,7 +275,8 @@ async def buscar_memorias_relevantes(
 
         secoes: list[str] = []
 
-        linhas_memoria = [f"- {m[0]}" for m in memorias if m[1] > 0.6]
+        # Threshold 0.55: GPT-4o ignora bem contexto irrelevante; melhor recall que precisao aqui.
+        linhas_memoria = [f"- {m[0]}" for m in memorias if m[1] > 0.55]
         if linhas_memoria:
             secoes.append("Fatos relevantes:\n" + "\n".join(linhas_memoria))
 
