@@ -153,34 +153,51 @@ Se NAO for tarefa recorrente, responda APENAS:
 {{"eh_recorrente": false}}"""
 
 
-EVENTO_PARSE_PROMPT = """Voce e um classificador JSON. Analise a mensagem e diga se o usuario esta RELATANDO algo que aconteceu (um evento passado ou de hoje).
+EVENTO_PARSE_PROMPT = """Voce e um classificador JSON. Analise a mensagem e diga se o usuario (Julio, supervisor de logistica que gerencia varias lojas) esta RELATANDO uma acao, deslocamento ou situacao concreta envolvendo seu trabalho, saude, pessoas ou lugares.
 
 Data e hora atual: {agora}
 
 Mensagem: "{mensagem}"
 
-Um evento e um fato pontual que aconteceu num momento especifico. Diferente de:
-- Fato atemporal (ex: "gosto de pizza") -> NAO e evento
-- Lembrete futuro (ex: "me lembra amanha") -> NAO e evento
-- Tarefa (ex: "adiciona comprar leite") -> NAO e evento
-- Pergunta (ex: "qual o capital do Brasil?") -> NAO e evento
-- Saudacao ou conversa casual -> NAO e evento
+CRITERIO AMPLO (prefira capturar a perder):
+Se a mensagem descreve uma acao concreta que esta acontecendo agora, acabou de acontecer, ou vai acontecer imediatamente (hoje, agora, em seguida), e e algo digno de ser lembrado depois (visita a loja, reuniao, deslocamento, problema, decisao, mudanca, saude) -> e EVENTO.
 
-Exemplos que SAO eventos (relato de algo que aconteceu):
-- "hoje visitei a loja de Salgueiro" -> eh_evento: true, categoria: visita_loja, lojas: ["Salgueiro"]
-- "ontem resolvi o problema de estoque em Petrolina" -> eh_evento: true, categoria: problema, lojas: ["Petrolina"]
-- "tive reuniao com o fornecedor X hoje de manha" -> eh_evento: true, categoria: reuniao
-- "acabei de sair da loja de Juazeiro" -> eh_evento: true, categoria: visita_loja, lojas: ["Juazeiro"]
-- "fechei o contrato com a transportadora" -> eh_evento: true, categoria: decisao
-- "fui ao medico hoje" -> eh_evento: true, categoria: saude
-- "dirigi de Salgueiro pra Petrolina essa manha" -> eh_evento: true, categoria: deslocamento, lojas: ["Salgueiro", "Petrolina"]
+Considere EVENTO:
+- Ja aconteceu: "visitei", "resolvi", "fui", "fechei"
+- Acontecendo agora: "estou indo", "to saindo", "acabei de chegar", "passei em"
+- Imediato (hoje): "hoje vou pra Salgueiro", "hoje estou indo pra noite", "amanha cedo vou ver o estoque de Petrolina"
+- Mudanca de estado pessoal: "me mudei para X", "comecei a trabalhar em Y", "me tornei gerente"
+
+NAO e evento:
+- Fato atemporal (ex: "gosto de pizza", "moro em X" sem contexto de mudanca) -> NAO
+- Futuro distante/vago (ex: "algum dia vou viajar", "ano que vem") -> NAO
+- Tarefa ou lembrete explicito ("adiciona X na lista", "me lembra amanha") -> NAO
+- Pergunta pura ("qual o horario?", "voce conhece X?") -> NAO
+- Saudacao ou conversa casual ("bom dia", "valeu") -> NAO
+- Descricao de outras pessoas sem envolver o Julio ("Alessandra e analista") -> NAO
+
+Exemplos que SAO eventos:
+- "hoje visitei a loja de Salgueiro" -> categoria: visita_loja, lojas: ["Salgueiro"], quando: "hoje"
+- "hoje estou indo para Salgueiro, hoje a noite" -> categoria: deslocamento, lojas: ["Salgueiro"], quando: "hoje"
+- "acabei de sair da loja de Juazeiro" -> categoria: visita_loja, lojas: ["Juazeiro"], quando: "hoje"
+- "to indo pra Petrolina agora resolver o problema de estoque" -> categoria: problema, lojas: ["Petrolina"], quando: "hoje"
+- "passei em Bonfim essa manha" -> categoria: visita_loja, lojas: ["Bonfim"], quando: "hoje"
+- "ontem resolvi o problema de estoque em Petrolina" -> categoria: problema, lojas: ["Petrolina"], quando: "ontem"
+- "tive reuniao com o fornecedor X hoje" -> categoria: reuniao, quando: "hoje"
+- "fechei o contrato com a transportadora" -> categoria: decisao, quando: "hoje"
+- "fui ao medico hoje" -> categoria: saude, quando: "hoje"
+- "dirigi de Salgueiro pra Petrolina essa manha" -> categoria: deslocamento, lojas: ["Salgueiro", "Petrolina"], quando: "hoje"
+- "me mudei para Teresina" -> categoria: deslocamento, quando: "hoje"
+- "comecei como gerente da unidade de Juazeiro" -> categoria: conquista, lojas: ["Juazeiro"], quando: "hoje"
 
 Exemplos que NAO sao eventos:
-- "gosto de pizza" -> eh_evento: false (fato atemporal)
-- "amanha vou visitar Petrolina" -> eh_evento: false (futuro, nao aconteceu)
-- "adiciona comprar leite na lista" -> eh_evento: false (tarefa)
-- "qual o horario da loja?" -> eh_evento: false (pergunta)
-- "bom dia" -> eh_evento: false (conversa casual)
+- "gosto de pizza" -> fato atemporal
+- "moro em Picos" -> fato atemporal (sem contexto de mudanca)
+- "amanha vou viajar de ferias" -> futuro distante
+- "adiciona comprar leite na lista" -> tarefa
+- "qual o horario da loja?" -> pergunta
+- "bom dia" -> saudacao
+- "Alessandra e analista responsavel pela linha Bastos" -> fato sobre outra pessoa
 
 Categorias validas: visita_loja, reuniao, decisao, problema, conquista, deslocamento, saude, outro
 
