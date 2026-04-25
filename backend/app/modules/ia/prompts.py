@@ -104,8 +104,12 @@ Exemplos que SAO lembrete (pontual):
 - "tenho consulta medica sexta as 14h" -> eh_lembrete: true
 - "tenho compromisso dia 25 as 10h" -> eh_lembrete: true
 - "tenho reuniao amanha as 8h" -> eh_lembrete: true
+- "a reuniao da diretoria ocorrera no dia 02/05/2026" -> eh_lembrete: true (informar evento futuro com data especifica)
+- "informo que a reuniao sera realizada em 02/05/2026" -> eh_lembrete: true
+- "a reuniao vai acontecer dia 10 de maio" -> eh_lembrete: true
+- "o prazo de entrega e dia 15/06" -> eh_lembrete: true (data futura especifica merece lembrete)
 
-REGRA: se o usuario declara um compromisso futuro com horario especifico ("tenho X as Y", "amanha tenho X as Y"), trate como lembrete — o usuario quer ser notificado.
+REGRA: se o usuario declara OU INFORMA um compromisso/evento futuro com data especifica (mesmo sem horario, use 08:00), trate como lembrete. Inclui frases como "Informo que X ocorrera em DATA", "X vai acontecer dia DATA", "o prazo e DATA".
 
 Exemplos que NAO sao lembrete (sao recorrentes):
 - "todo dia as 8h me manda o clima" -> eh_lembrete: false
@@ -127,7 +131,9 @@ Regras:
 - "hoje" = data de hoje no horario mencionado
 - Se nao tiver horario, use 08:00
 - Sempre use timezone -03:00 (America/Sao_Paulo)
-- Titulo deve ser conciso (maximo 10 palavras)"""
+- Titulo deve ser conciso (maximo 10 palavras)
+- Datas no formato "dd/mm/aaaa" devem ser convertidas para ISO: "02/05/2026" -> "2026-05-02T08:00:00-03:00"
+- Datas no formato "dia X de mes" devem ser convertidas para ISO: "dia 10 de maio" -> "2026-05-10T08:00:00-03:00""""
 
 
 # Prompt para detectar e parsear pedido de tarefa RECORRENTE (cron)
@@ -203,6 +209,9 @@ Exemplos que SAO eventos:
 - "amanha tenho uma reuniao com o pessoal da ATS as 9h30" -> categoria: reuniao, quando: "amanha"
 - "amanha cedo tenho reuniao com fornecedor" -> categoria: reuniao, quando: "amanha"
 - "sexta tenho reuniao com a equipe" -> categoria: reuniao, quando: "2026-04-25" (usar data ISO para dias da semana)
+- "a reuniao da diretoria mensal ocorrera no dia 02/05/2026" -> categoria: reuniao, quando: "2026-05-02" (informar evento futuro com data especifica e evento)
+- "informo que a reuniao sera realizada em 02/05/2026" -> categoria: reuniao, quando: "2026-05-02"
+- "o evento vai acontecer dia 10 de maio" -> categoria: outro, quando: "2026-05-10"
 
 Exemplos que NAO sao eventos:
 - "gosto de pizza" -> fato atemporal
