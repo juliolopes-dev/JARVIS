@@ -132,8 +132,8 @@ Regras:
 - Se nao tiver horario, use 08:00
 - Sempre use timezone -03:00 (America/Sao_Paulo)
 - Titulo deve ser conciso (maximo 10 palavras)
-- Datas no formato "dd/mm/aaaa" devem ser convertidas para ISO: "02/05/2026" -> "2026-05-02T08:00:00-03:00"
-- Datas no formato "dia X de mes" devem ser convertidas para ISO: "dia 10 de maio" -> "2026-05-10T08:00:00-03:00""""
+- Datas no formato dd/mm/aaaa devem ser convertidas para ISO: 02/05/2026 -> 2026-05-02T08:00:00-03:00
+- Datas no formato "dia X de mes" devem ser convertidas para ISO: dia 10 de maio -> 2026-05-10T08:00:00-03:00"""
 
 
 # Prompt para detectar e parsear pedido de tarefa RECORRENTE (cron)
