@@ -244,6 +244,21 @@ async def extrair_e_salvar_memoria(
         logger.warning("Falha ao extrair memoria: {}", str(e))
 
 
+_META_QUERY_TOKENS = (
+    "sabe sobre mim", "sabe de mim", "lembra de mim", "lembra sobre mim",
+    "conhece sobre mim", "conhece de mim", "voce sabe sobre mim", "vc sabe sobre mim",
+    "me conhece", "saber sobre mim", "memoria sobre mim", "me fale sobre mim",
+    "fale sobre mim", "o que voce sabe", "o que vc sabe", "oque voce sabe",
+    "oque vc sabe",
+)
+
+
+def _is_meta_query(consulta: str) -> bool:
+    """Detecta perguntas sobre o proprio conhecimento do Jarvis sobre o usuario."""
+    norm = _normalizar(consulta)
+    return any(token in norm for token in _META_QUERY_TOKENS)
+
+
 def _score_combinado(similaridade: float, data_referencia: datetime, decay_dias: int = 365) -> float:
     """Score = 70% similaridade semântica + 30% recência (decay linear)."""
     agora = datetime.now(timezone.utc)
@@ -261,75 +276,126 @@ async def buscar_memorias_relevantes(
 ) -> str:
     """
     Busca fatos + eventos relevantes via pgvector com score combinado (similaridade + recência).
+    Meta-perguntas ("o que você sabe sobre mim?") usam recuperação por recência em vez de
+    busca semântica, pois não têm similaridade coseno alta com fatos específicos.
     Retorna string formatada para inserir no system prompt.
     """
     try:
-        embedding = await gerar_embedding(consulta)
-
         from sqlalchemy import text
 
-        # ── Fatos (memorias) ──────────────────────────────────────────────────
-        result = await db.execute(
-            text("""
-                SELECT conteudo, 1 - (embedding <=> :embedding) AS similaridade, criado_em
-                FROM memorias
-                WHERE id_usuario = :id_usuario AND flg_ativo = true AND embedding IS NOT NULL
-                ORDER BY embedding <=> :embedding
-                LIMIT :limite
-            """),
-            {"embedding": str(embedding), "id_usuario": str(id_usuario), "limite": limite},
-        )
-        fatos_raw = result.fetchall()
-
-        fatos_scored = []
-        for conteudo, sim, criado_em in fatos_raw:
-            if sim < 0.45:
-                continue
-            score = _score_combinado(sim, criado_em, decay_dias=365)
-            fatos_scored.append((conteudo, score))
-
-        fatos_scored.sort(key=lambda x: x[1], reverse=True)
-
-        # ── Eventos (memoria episodica) ───────────────────────────────────────
-        result_evt = await db.execute(
-            text("""
-                SELECT resumo, categoria, dat_ocorreu,
-                       1 - (embedding <=> :embedding) AS similaridade
-                FROM eventos
-                WHERE id_usuario = :id_usuario AND flg_ativo = true AND embedding IS NOT NULL
-                ORDER BY embedding <=> :embedding
-                LIMIT 10
-            """),
-            {"embedding": str(embedding), "id_usuario": str(id_usuario)},
-        )
-        eventos_raw = result_evt.fetchall()
-
         brt = ZoneInfo("America/Sao_Paulo")
-        eventos_scored = []
-        for resumo, categoria, dat_ocorreu, sim in eventos_raw:
-            if sim < 0.40:
-                continue
-            # Eventos decaem mais rapido (180 dias) — contexto recente importa mais
-            score = _score_combinado(sim, dat_ocorreu, decay_dias=180)
-            eventos_scored.append((resumo, categoria, dat_ocorreu, score))
-
-        eventos_scored.sort(key=lambda x: x[3], reverse=True)
-
-        # ── Montar secoes do contexto ─────────────────────────────────────────
         secoes: list[str] = []
 
-        linhas_memoria = [f"- {f[0]}" for f in fatos_scored]
-        if linhas_memoria:
-            secoes.append("Fatos relevantes:\n" + "\n".join(linhas_memoria))
+        if _is_meta_query(consulta):
+            # ── Caminho meta-pergunta: recuperar tudo por recência ────────────
+            result = await db.execute(
+                text("""
+                    SELECT conteudo, categoria, criado_em
+                    FROM memorias
+                    WHERE id_usuario = :id_usuario AND flg_ativo = true
+                    ORDER BY criado_em DESC
+                    LIMIT 30
+                """),
+                {"id_usuario": str(id_usuario)},
+            )
+            fatos_all = result.fetchall()
 
-        if eventos_scored:
-            linhas_eventos = []
-            for resumo, categoria, dat_ocorreu, _ in eventos_scored[:5]:
-                dat_fmt = dat_ocorreu.astimezone(brt).strftime("%d/%m/%Y")
-                linhas_eventos.append(f"- [{dat_fmt}] {resumo} ({categoria})")
-            secoes.append("Eventos recentes relevantes:\n" + "\n".join(linhas_eventos))
+            if fatos_all:
+                # Agrupa por categoria para facilitar leitura do modelo
+                por_categoria: dict[str, list[str]] = {}
+                for conteudo, categoria, _ in fatos_all:
+                    por_categoria.setdefault(categoria or "fato", []).append(conteudo)
 
-        # Detectar pessoas mencionadas por nome/relacao (substring normalizado)
+                linhas: list[str] = []
+                for cat in ("pessoa", "local", "trabalho", "preferencia", "meta", "fato"):
+                    for fato in por_categoria.get(cat, []):
+                        linhas.append(f"- [{cat}] {fato}")
+                # categorias extras nao previstas
+                for cat, fatos in por_categoria.items():
+                    if cat not in ("pessoa", "local", "trabalho", "preferencia", "meta", "fato"):
+                        for fato in fatos:
+                            linhas.append(f"- [{cat}] {fato}")
+
+                secoes.append("Tudo que sei sobre o usuário:\n" + "\n".join(linhas))
+
+            # Ultimos 5 eventos por recencia
+            result_evt = await db.execute(
+                text("""
+                    SELECT resumo, categoria, dat_ocorreu
+                    FROM eventos
+                    WHERE id_usuario = :id_usuario AND flg_ativo = true
+                    ORDER BY dat_ocorreu DESC
+                    LIMIT 5
+                """),
+                {"id_usuario": str(id_usuario)},
+            )
+            eventos_recentes = result_evt.fetchall()
+            if eventos_recentes:
+                linhas_evt = []
+                for resumo, categoria, dat_ocorreu in eventos_recentes:
+                    dat_fmt = dat_ocorreu.astimezone(brt).strftime("%d/%m/%Y")
+                    linhas_evt.append(f"- [{dat_fmt}] {resumo} ({categoria})")
+                secoes.append("Eventos recentes:\n" + "\n".join(linhas_evt))
+
+        else:
+            # ── Caminho padrão: busca semântica com score combinado ───────────
+            embedding = await gerar_embedding(consulta)
+
+            # Fatos (memorias)
+            result = await db.execute(
+                text("""
+                    SELECT conteudo, 1 - (embedding <=> :embedding) AS similaridade, criado_em
+                    FROM memorias
+                    WHERE id_usuario = :id_usuario AND flg_ativo = true AND embedding IS NOT NULL
+                    ORDER BY embedding <=> :embedding
+                    LIMIT :limite
+                """),
+                {"embedding": str(embedding), "id_usuario": str(id_usuario), "limite": limite},
+            )
+            fatos_raw = result.fetchall()
+
+            fatos_scored = []
+            for conteudo, sim, criado_em in fatos_raw:
+                if sim < 0.45:
+                    continue
+                score = _score_combinado(sim, criado_em, decay_dias=365)
+                fatos_scored.append((conteudo, score))
+            fatos_scored.sort(key=lambda x: x[1], reverse=True)
+
+            # Eventos (memoria episodica)
+            result_evt = await db.execute(
+                text("""
+                    SELECT resumo, categoria, dat_ocorreu,
+                           1 - (embedding <=> :embedding) AS similaridade
+                    FROM eventos
+                    WHERE id_usuario = :id_usuario AND flg_ativo = true AND embedding IS NOT NULL
+                    ORDER BY embedding <=> :embedding
+                    LIMIT 10
+                """),
+                {"embedding": str(embedding), "id_usuario": str(id_usuario)},
+            )
+            eventos_raw = result_evt.fetchall()
+
+            eventos_scored = []
+            for resumo, categoria, dat_ocorreu, sim in eventos_raw:
+                if sim < 0.40:
+                    continue
+                score = _score_combinado(sim, dat_ocorreu, decay_dias=180)
+                eventos_scored.append((resumo, categoria, dat_ocorreu, score))
+            eventos_scored.sort(key=lambda x: x[3], reverse=True)
+
+            linhas_memoria = [f"- {f[0]}" for f in fatos_scored]
+            if linhas_memoria:
+                secoes.append("Fatos relevantes:\n" + "\n".join(linhas_memoria))
+
+            if eventos_scored:
+                linhas_eventos = []
+                for resumo, categoria, dat_ocorreu, _ in eventos_scored[:5]:
+                    dat_fmt = dat_ocorreu.astimezone(brt).strftime("%d/%m/%Y")
+                    linhas_eventos.append(f"- [{dat_fmt}] {resumo} ({categoria})")
+                secoes.append("Eventos recentes relevantes:\n" + "\n".join(linhas_eventos))
+
+        # ── Pessoas mencionadas (ambos os caminhos) ───────────────────────────
         pessoas_mencionadas = await _detectar_pessoas_mencionadas(consulta, id_usuario, db)
         if pessoas_mencionadas:
             linhas_pessoas = []

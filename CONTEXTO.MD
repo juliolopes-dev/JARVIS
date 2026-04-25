@@ -583,7 +583,7 @@ Lista de 10 features ordenadas por impacto real no dia-a-dia. Serao desenvolvida
 - **`server_default=func.now()` empata timestamps na mesma transacao** — usuario e assistente salvos no mesmo request do chat ficavam com `criado_em` identicos. Resolvido com desempate secundario `ORDER BY criado_em DESC, papel ASC` + `reversed()` em `listar_mensagens`
 
 ## Ultima Sessao
-**2026-04-19** — Fix de ordem de mensagens no chat. Bug: resposta do Jarvis aparecia ACIMA da mensagem do usuario na UI. Causa raiz: `server_default=func.now()` no PostgreSQL retorna timestamp do inicio da transacao (nao do INSERT), entao `msg_usuario` e `msg_assistente` salvos no mesmo request do `enviar_mensagem_stream` ficavam com `criado_em` identicos — a ordenacao por `criado_em.desc()` virava indeterministica. Correcao em `backend/app/modules/chat/service.py:listar_mensagens`: adicionado desempate `Mensagem.papel.asc()` na query DESC (combinado com `reversed()` no fim, `user` volta a vir antes de `assistant` no mesmo timestamp). Dois commits necessarios: primeira tentativa usou `papel.desc()` que inverteu o sentido errado, corrigido com segundo commit. Deploy via EasyPanel automatico apos push.
+**2026-04-24** — Fix dos parsers NLP do chat. Bug: frases declarativas com horario especifico ("amanha tenho reuniao com X as 9:30") nao criavam lembrete nem evento — so extraiam fato via Mem0. Causa raiz: `LEMBRETE_PARSE_PROMPT` so tinha exemplos imperativos ("me lembra..."), e `EVENTO_PARSE_PROMPT` nao cobria reunioes futuras proximas. Correcoes: (1) novos exemplos declarativos com horario no prompt de lembrete, com REGRA explicita; (2) novos exemplos de reunioes futuras no prompt de evento; (3) lembrete e evento passaram a coexistir — removido `lembrete_info` da condicao de supressao em `chat/service.py`; (4) adicionado tratamento de `"amanha"` no switch `quando_raw` (bug colateral encontrado pela Vera: valores novos no prompt que o codigo nao tratava salvavam data errada). Commit `a571052` + push → deploy EasyPanel.
 
 ## Proximos Passos
 1. **Fase 4 (Integracoes)** — MCP Gmail, Google Calendar, Web Search (Fase 3 ✅ 100% concluida)
@@ -700,6 +700,34 @@ Opcoes possiveis, todas validas para o contexto do Julio (supervisor de logistic
 
 **Falta principalmente:** tool calling + modulo agentes + ferramentas especificas. Comecar do zero (estilo Clawbro/AutoGPT genericos) seria reinventar toda essa infra sem ter o contexto pessoal do usuario.
 
+### Framework para Fase 5 — Agno (decisao tomada em 2026-04-24)
+
+**Usar Agno (https://docs.agno.com) APENAS no modulo `agentes/`** — nao migrar nada do que ja existe.
+
+**Por que Agno na Fase 5:**
+- Entrega pronto: loop de tool calling, memoria dedicada por agente, log de execucoes, Teams (multi-agentes)
+- Em vez de ~3-4 dias construindo `base.py` + loop manual, cai para ~1-2 dias
+- Roda SQLAlchemy 2.0 + PostgreSQL + pgvector por baixo — compativel com a stack atual
+- APScheduler continua no controle do *quando*; Agno cuida do *como executar*
+
+**O que NAO usar Agno:**
+- Chat SSE streaming → manter SDK Anthropic direto
+- Mem0 + pgvector → manter
+- APScheduler + jobs → Agno nao substitui, manter
+- Modulo livros (RAG) → manter pdfplumber atual
+- Auth, config, checklist → nao tem relacao com IA
+
+**Estrutura prevista do modulo agentes com Agno:**
+```
+backend/app/modules/agentes/
+├── base.py       ← instancia Agent do Agno (sem construir loop do zero)
+├── tipos/        ← monitor_estoque, triagem_email, etc.
+├── router.py     ← /api/agentes/* (CRUD + disparar + listar execucoes)
+└── service.py    ← agenda via APScheduler → chama agente Agno
+```
+
+**Instalacao:** `uv add agno` (Python 3.10+, suporta uv)
+
 ## Historico de Mudancas
 | Data | Mudanca |
 |------|---------|
@@ -716,3 +744,4 @@ Opcoes possiveis, todas validas para o contexto do Julio (supervisor de logistic
 | 2026-04-18 | Fase 3 concluida 100% — novo modulo tarefas recorrentes (/api/tarefas-agendadas) com CronTrigger timezone-aware, terceiro parser NLP detectar_tarefa_recorrente em paralelo (prioridade recorrente>lembrete>tarefa), aba "Recorrentes" em LembretesPage com cronParaTexto helper, reagendamento no startup |
 | 2026-04-19 | Fase D (memoria episodica) completa — tabela eventos (dat_ocorreu, resumo, categoria, lojas, pessoas_envolvidas, embedding 1536), quarto parser NLP detectar_evento em paralelo com criterio amplo, marcador [EVENTO_REGISTRADO], backfill idempotente de historico (7 eventos criados), aba Eventos na MemoriaPage com filtros por categoria |
 | 2026-04-19 | Fix ordem de mensagens no chat — server_default=func.now() empatava timestamps user+assistant na mesma transacao, virando ordem indeterministica. Desempate por `papel.asc()` na query DESC com `reversed()` no fim |
+| 2026-04-24 | Fix parsers NLP — frases declarativas com horario ("amanha tenho reuniao as X") agora criam lembrete + evento. Lembrete e evento podem coexistir. Fix colateral: tratamento de "amanha" no switch quando_raw do service.py |
