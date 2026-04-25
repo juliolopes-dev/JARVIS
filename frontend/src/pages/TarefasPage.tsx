@@ -234,6 +234,15 @@ function PainelDetalhes({
                 </span>
               </div>
             )}
+            <div>
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <Calendar size={12} className="text-text-faint" />
+                <span className="text-2xs text-text-faint uppercase tracking-wider font-medium">Criado em</span>
+              </div>
+              <span className="text-sm text-text-faint">
+                {new Date(tarefa.criado_em).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+              </span>
+            </div>
           </div>
           {/* Ações */}
           <div className="shrink-0 border-t border-surface-border p-4 flex gap-2 pb-8">
@@ -349,6 +358,17 @@ function PainelDetalhes({
           </div>
           <span className={cn('text-sm font-medium', tarefa.flg_concluida ? 'text-green-400' : 'text-text-secondary')}>
             {tarefa.flg_concluida ? 'Concluída' : 'Pendente'}
+          </span>
+        </div>
+
+        {/* Criado em */}
+        <div>
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <Calendar size={12} className="text-text-faint" />
+            <span className="text-2xs text-text-faint uppercase tracking-wider font-medium">Criado em</span>
+          </div>
+          <span className="text-sm text-text-faint">
+            {new Date(tarefa.criado_em).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
           </span>
         </div>
       </div>
