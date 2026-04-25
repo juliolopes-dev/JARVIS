@@ -155,6 +155,12 @@ Exemplos que NAO sao tarefas recorrentes:
 - "qual e a capital do Brasil?" -> eh_recorrente: false
 - "adiciona comprar leite na lista" -> eh_recorrente: false (tarefa de checklist)
 - "cria uma tarefa de ligar pro banco" -> eh_recorrente: false
+- "a reuniao mensal da diretoria, que acontece todo primeiro sabado, ocorrera em 02/05/2026" -> eh_recorrente: false (data unica especifica = lembrete pontual)
+- "informo que a reuniao mensal sera dia 10/06/2026" -> eh_recorrente: false (informa UMA ocorrencia especifica)
+- "amanha as 9h tem a reuniao semanal de acompanhamento" -> eh_recorrente: false (data especifica = pontual)
+- "no dia 15/05 tem o evento que ocorre todo mes" -> eh_recorrente: false
+
+REGRA CRITICA: se a mensagem menciona uma DATA ESPECIFICA UNICA (dd/mm/aaaa, "amanha", "sexta", "dia 25"), NAO e recorrente — e lembrete pontual, mesmo que descreva um evento que costuma se repetir. Recorrente exige PEDIDO EXPLICITO de agendamento aberto ("todo dia", "toda segunda", "a cada hora") SEM data unica.
 
 Se for tarefa recorrente, responda APENAS com JSON:
 {{"eh_recorrente": true, "descricao": "descricao clara em ate 15 palavras", "cron_expressao": "0 8 * * *", "texto_push": "texto da notificacao enviada"}}
