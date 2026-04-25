@@ -96,14 +96,25 @@ Mensagem: {mensagem}
 IMPORTANTE: lembrete e PONTUAL (acontece uma vez). NAO confundir com tarefa recorrente.
 
 Exemplos que SAO lembrete (pontual):
-- "me lembra amanha as 9h da reuniao"
-- "me lembra dia 25 de pagar a conta"
-- "lembrete daqui a 2 horas"
+- "me lembra amanha as 9h da reuniao" -> eh_lembrete: true
+- "me lembra dia 25 de pagar a conta" -> eh_lembrete: true
+- "lembrete daqui a 2 horas" -> eh_lembrete: true
+- "amanha tenho uma reuniao as 9h30" -> eh_lembrete: true (compromisso declarado com horario especifico)
+- "amanha tenho uma reuniao com o pessoal da ATS as 9h30" -> eh_lembrete: true
+- "tenho consulta medica sexta as 14h" -> eh_lembrete: true
+- "tenho compromisso dia 25 as 10h" -> eh_lembrete: true
+- "tenho reuniao amanha as 8h" -> eh_lembrete: true
+
+REGRA: se o usuario declara um compromisso futuro com horario especifico ("tenho X as Y", "amanha tenho X as Y"), trate como lembrete — o usuario quer ser notificado.
 
 Exemplos que NAO sao lembrete (sao recorrentes):
 - "todo dia as 8h me manda o clima" -> eh_lembrete: false
 - "toda segunda feira me lembra da reuniao" -> eh_lembrete: false
 - "dia 5 de todo mes me lembra de pagar" -> eh_lembrete: false
+
+Exemplos que NAO sao lembrete (sem horario especifico):
+- "amanha tenho que ligar pro banco" -> eh_lembrete: false (sem horario definido)
+- "semana que vem tenho reuniao" -> eh_lembrete: false (sem horario definido)
 
 Se for um pedido de lembrete PONTUAL, responda APENAS com JSON no formato:
 {{"eh_lembrete": true, "titulo": "titulo curto do lembrete", "descricao": "descricao opcional ou null", "dat_lembrete": "2026-04-14T09:00:00-03:00"}}
@@ -189,6 +200,9 @@ Exemplos que SAO eventos:
 - "dirigi de Salgueiro pra Petrolina essa manha" -> categoria: deslocamento, lojas: ["Salgueiro", "Petrolina"], quando: "hoje"
 - "me mudei para Teresina" -> categoria: deslocamento, quando: "hoje"
 - "comecei como gerente da unidade de Juazeiro" -> categoria: conquista, lojas: ["Juazeiro"], quando: "hoje"
+- "amanha tenho uma reuniao com o pessoal da ATS as 9h30" -> categoria: reuniao, quando: "amanha"
+- "amanha cedo tenho reuniao com fornecedor" -> categoria: reuniao, quando: "amanha"
+- "sexta tenho reuniao com a equipe" -> categoria: reuniao, quando: "2026-04-25" (usar data ISO para dias da semana)
 
 Exemplos que NAO sao eventos:
 - "gosto de pizza" -> fato atemporal

@@ -117,8 +117,9 @@ async def enviar_mensagem_stream(
     if recorrente_info:
         lembrete_info = None
 
-    # Evento nao coexiste com lembrete/tarefa/recorrente (relato vs futuro)
-    if lembrete_info or tarefa_info or recorrente_info:
+    # Tarefas e recorrentes suprimem evento (checklist nao e memoria episodica)
+    # Lembrete pode coexistir com evento — reuniao agendada merece notificacao E registro
+    if tarefa_info or recorrente_info:
         evento_info = None
 
     confirmacao_lembrete = ""
@@ -226,6 +227,8 @@ async def enviar_mensagem_stream(
                 dat_ocorreu = agora_brt - timedelta(days=1)
             elif quando_raw == "hoje":
                 dat_ocorreu = agora_brt
+            elif quando_raw == "amanha":
+                dat_ocorreu = agora_brt + timedelta(days=1)
             else:
                 try:
                     dat_ocorreu = datetime.fromisoformat(quando_raw)
