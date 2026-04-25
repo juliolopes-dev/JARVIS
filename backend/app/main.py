@@ -95,6 +95,21 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning("Falha ao reagendar tarefas no startup: {}", str(e))
 
+    # Agendar consolidacao semanal de memorias duplicadas
+    try:
+        from apscheduler.triggers.cron import CronTrigger
+        from app.modules.memoria.service import _job_consolidar_memorias
+
+        scheduler.add_job(
+            _job_consolidar_memorias,
+            trigger=CronTrigger.from_crontab("0 3 * * 1", timezone="America/Sao_Paulo"),
+            id="consolidar_memorias",
+            replace_existing=True,
+        )
+        logger.info("Job consolidacao de memorias agendado | toda segunda 03:00 BRT")
+    except Exception as e:
+        logger.warning("Falha ao agendar consolidacao de memorias: {}", str(e))
+
     yield
     scheduler.shutdown()
     logger.info("Jarvis encerrando...")

@@ -7,10 +7,12 @@ Fluxo:
 3. Busca semantica via pgvector quando precisar de contexto
 """
 
+import json
 import re
 import unicodedata
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 from loguru import logger
 from sqlalchemy import select
@@ -242,6 +244,15 @@ async def extrair_e_salvar_memoria(
         logger.warning("Falha ao extrair memoria: {}", str(e))
 
 
+def _score_combinado(similaridade: float, data_referencia: datetime, decay_dias: int = 365) -> float:
+    """Score = 70% similaridade semântica + 30% recência (decay linear)."""
+    agora = datetime.now(timezone.utc)
+    ref = data_referencia if data_referencia.tzinfo else data_referencia.replace(tzinfo=timezone.utc)
+    dias = max(0, (agora - ref).days)
+    recencia = max(0.0, 1.0 - dias / decay_dias)
+    return similaridade * 0.7 + recencia * 0.3
+
+
 async def buscar_memorias_relevantes(
     consulta: str,
     id_usuario: uuid.UUID,
@@ -249,41 +260,76 @@ async def buscar_memorias_relevantes(
     limite: int = 5,
 ) -> str:
     """
-    Busca memorias relevantes via pgvector (cosine similarity) + pessoas mencionadas.
+    Busca fatos + eventos relevantes via pgvector com score combinado (similaridade + recência).
     Retorna string formatada para inserir no system prompt.
     """
     try:
         embedding = await gerar_embedding(consulta)
 
-        # Busca por similaridade usando operador <=> (cosine distance) do pgvector
         from sqlalchemy import text
 
+        # ── Fatos (memorias) ──────────────────────────────────────────────────
         result = await db.execute(
             text("""
-                SELECT conteudo, 1 - (embedding <=> :embedding) AS similaridade
+                SELECT conteudo, 1 - (embedding <=> :embedding) AS similaridade, criado_em
                 FROM memorias
                 WHERE id_usuario = :id_usuario AND flg_ativo = true AND embedding IS NOT NULL
                 ORDER BY embedding <=> :embedding
                 LIMIT :limite
             """),
-            {
-                "embedding": str(embedding),
-                "id_usuario": str(id_usuario),
-                "limite": limite,
-            },
+            {"embedding": str(embedding), "id_usuario": str(id_usuario), "limite": limite},
         )
-        memorias = result.fetchall()
+        fatos_raw = result.fetchall()
 
+        fatos_scored = []
+        for conteudo, sim, criado_em in fatos_raw:
+            if sim < 0.45:
+                continue
+            score = _score_combinado(sim, criado_em, decay_dias=365)
+            fatos_scored.append((conteudo, score))
+
+        fatos_scored.sort(key=lambda x: x[1], reverse=True)
+
+        # ── Eventos (memoria episodica) ───────────────────────────────────────
+        result_evt = await db.execute(
+            text("""
+                SELECT resumo, categoria, dat_ocorreu,
+                       1 - (embedding <=> :embedding) AS similaridade
+                FROM eventos
+                WHERE id_usuario = :id_usuario AND flg_ativo = true AND embedding IS NOT NULL
+                ORDER BY embedding <=> :embedding
+                LIMIT 10
+            """),
+            {"embedding": str(embedding), "id_usuario": str(id_usuario)},
+        )
+        eventos_raw = result_evt.fetchall()
+
+        brt = ZoneInfo("America/Sao_Paulo")
+        eventos_scored = []
+        for resumo, categoria, dat_ocorreu, sim in eventos_raw:
+            if sim < 0.40:
+                continue
+            # Eventos decaem mais rapido (180 dias) — contexto recente importa mais
+            score = _score_combinado(sim, dat_ocorreu, decay_dias=180)
+            eventos_scored.append((resumo, categoria, dat_ocorreu, score))
+
+        eventos_scored.sort(key=lambda x: x[3], reverse=True)
+
+        # ── Montar secoes do contexto ─────────────────────────────────────────
         secoes: list[str] = []
 
-        # Threshold 0.55: GPT-4o ignora bem contexto irrelevante; melhor recall que precisao aqui.
-        linhas_memoria = [f"- {m[0]}" for m in memorias if m[1] > 0.55]
+        linhas_memoria = [f"- {f[0]}" for f in fatos_scored]
         if linhas_memoria:
             secoes.append("Fatos relevantes:\n" + "\n".join(linhas_memoria))
 
-        # Detectar pessoas mencionadas na consulta e trazer contexto delas.
-        # Match simples por substring case-insensitive no nome — suficiente para
-        # um usuario unico com poucas dezenas de pessoas cadastradas.
+        if eventos_scored:
+            linhas_eventos = []
+            for resumo, categoria, dat_ocorreu, _ in eventos_scored[:5]:
+                dat_fmt = dat_ocorreu.astimezone(brt).strftime("%d/%m/%Y")
+                linhas_eventos.append(f"- [{dat_fmt}] {resumo} ({categoria})")
+            secoes.append("Eventos recentes relevantes:\n" + "\n".join(linhas_eventos))
+
+        # Detectar pessoas mencionadas por nome/relacao (substring normalizado)
         pessoas_mencionadas = await _detectar_pessoas_mencionadas(consulta, id_usuario, db)
         if pessoas_mencionadas:
             linhas_pessoas = []
@@ -376,6 +422,118 @@ async def desativar_memoria(
     memoria.flg_ativo = False
     db.add(memoria)
     return True
+
+
+# ===== CONSOLIDACAO =====
+
+async def consolidar_memorias_usuario(id_usuario: uuid.UUID) -> int:
+    """
+    Busca pares de fatos com similaridade > 0.85 e pede ao GPT-4o mini para decidir
+    se devem ser mesclados. Retorna quantas memorias foram consolidadas.
+    Roda em sessao propria — nao depende de db externo.
+    """
+    from app.core.database import AsyncSessionLocal
+    from sqlalchemy import text
+
+    async with AsyncSessionLocal() as db:
+        try:
+            result = await db.execute(
+                text("""
+                    SELECT a.id, a.conteudo, b.id AS id_b, b.conteudo AS conteudo_b,
+                           1 - (a.embedding <=> b.embedding) AS similaridade
+                    FROM memorias a
+                    JOIN memorias b ON a.id_usuario = b.id_usuario
+                    WHERE a.id_usuario = :id_usuario
+                      AND a.id < b.id
+                      AND a.flg_ativo = true
+                      AND b.flg_ativo = true
+                      AND a.embedding IS NOT NULL
+                      AND b.embedding IS NOT NULL
+                      AND 1 - (a.embedding <=> b.embedding) > 0.85
+                    ORDER BY similaridade DESC
+                    LIMIT 20
+                """),
+                {"id_usuario": str(id_usuario)},
+            )
+            pares = result.fetchall()
+
+            if not pares:
+                return 0
+
+            cliente = get_openai()
+            consolidados = 0
+
+            for id_a, conteudo_a, id_b, conteudo_b, _ in pares:
+                try:
+                    resp = await cliente.chat.completions.create(
+                        model="gpt-4o-mini",
+                        messages=[
+                            {
+                                "role": "system",
+                                "content": (
+                                    "Analise dois fatos de memoria pessoal. "
+                                    "Se forem duplicados ou contraditorios, responda com JSON: "
+                                    '{"consolidar": true, "fato_final": "texto unificado em portugues"} '
+                                    "Se forem complementares ou distintos, responda apenas: "
+                                    '{"consolidar": false}'
+                                ),
+                            },
+                            {"role": "user", "content": f"Fato A: {conteudo_a}\nFato B: {conteudo_b}"},
+                        ],
+                        response_format={"type": "json_object"},
+                        max_tokens=100,
+                        temperature=0,
+                    )
+                    dados = json.loads(resp.choices[0].message.content)
+
+                    if not dados.get("consolidar") or not dados.get("fato_final"):
+                        continue
+
+                    fato_final = dados["fato_final"]
+                    novo_embedding = await gerar_embedding(fato_final)
+
+                    mem_a = (await db.execute(select(Memoria).where(Memoria.id == id_a))).scalar_one_or_none()
+                    mem_b = (await db.execute(select(Memoria).where(Memoria.id == id_b))).scalar_one_or_none()
+
+                    if mem_a:
+                        mem_a.conteudo = fato_final
+                        mem_a.embedding = novo_embedding
+                        db.add(mem_a)
+                    if mem_b:
+                        mem_b.flg_ativo = False
+                        db.add(mem_b)
+
+                    consolidados += 1
+                    logger.debug("Memorias consolidadas | a={} | b={} | resultado={}", id_a, id_b, fato_final)
+
+                except Exception as e:
+                    logger.warning("Falha ao consolidar par ({}, {}): {}", id_a, id_b, str(e))
+
+            await db.commit()
+            logger.info("Consolidacao | id_usuario={} | consolidados={}", id_usuario, consolidados)
+            return consolidados
+
+        except Exception as e:
+            await db.rollback()
+            logger.warning("Falha na consolidacao de memorias: {}", str(e))
+            return 0
+
+
+async def _job_consolidar_memorias() -> None:
+    """Job APScheduler — roda toda segunda-feira as 03:00 BRT."""
+    from app.core.database import AsyncSessionLocal
+    from app.modules.auth.models import Usuario
+
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(select(Usuario.id).where(Usuario.flg_ativo == True))  # noqa: E712
+        ids = result.scalars().all()
+
+    total = 0
+    for id_usuario in ids:
+        consolidados = await consolidar_memorias_usuario(id_usuario)
+        total += consolidados
+
+    logger.info("Job consolidacao concluido | total={}", total)
 
 
 # ===== PESSOAS =====
