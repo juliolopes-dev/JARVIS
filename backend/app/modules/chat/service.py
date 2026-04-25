@@ -333,6 +333,43 @@ async def enviar_mensagem_stream(
         conteudo, id_usuario, db, limite=20
     )
 
+    # 4b. Injetar lembretes pendentes no contexto — sem isso o Jarvis responde
+    #     "nao tenho acesso ao seu calendario" mesmo tendo lembretes no banco
+    try:
+        from datetime import datetime, timezone
+        from app.modules.lembretes.models import Lembrete
+        from zoneinfo import ZoneInfo
+
+        brt = ZoneInfo("America/Sao_Paulo")
+        agora_utc = datetime.now(timezone.utc)
+
+        result_lem = await db.execute(
+            select(Lembrete)
+            .where(
+                Lembrete.id_usuario == id_usuario,
+                Lembrete.flg_ativo == True,  # noqa: E712
+                Lembrete.sts_lembrete == "pendente",
+                Lembrete.dat_lembrete >= agora_utc,
+            )
+            .order_by(Lembrete.dat_lembrete.asc())
+            .limit(10)
+        )
+        lembretes_pendentes = list(result_lem.scalars())
+
+        if lembretes_pendentes:
+            linhas_lem = []
+            for lem in lembretes_pendentes:
+                dat_brt = lem.dat_lembrete.astimezone(brt)
+                dat_fmt = dat_brt.strftime("%d/%m/%Y %H:%M")
+                linha = f"- [{dat_fmt}] {lem.titulo}"
+                if lem.descricao:
+                    linha += f" — {lem.descricao}"
+                linhas_lem.append(linha)
+            bloco_lembretes = "Lembretes pendentes:\n" + "\n".join(linhas_lem)
+            contexto_memoria = (bloco_lembretes + "\n\n" + contexto_memoria).strip()
+    except Exception as e:
+        logger.warning("Falha ao injetar lembretes no contexto: {}", str(e))
+
     # 5. Montar mensagens para a IA (incluir confirmacoes se houver)
     conteudo_ia = conteudo + confirmacao_lembrete + confirmacao_tarefa + confirmacao_recorrente + confirmacao_evento + confirmacao_leitura
     mensagens_ia = contexto_redis + [{"role": "user", "content": conteudo_ia}]
