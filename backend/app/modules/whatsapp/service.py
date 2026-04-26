@@ -322,6 +322,51 @@ async def garantir_conversa_whatsapp(
 
 # ─── Pipeline NLP (parsers + Mem0 + eventos) ────────────────────────────────
 
+async def reescrever_em_terceira_pessoa(texto: str, pessoa: Pessoa) -> str:
+    """
+    Reescreve uma mensagem do contato em terceira pessoa, com nome explicito.
+
+    Sem isso, o Mem0 le "estou com gripe" e salva como fato do USUARIO
+    (Julio), nao do contato. Reescrever para "NEXUS esta com gripe" garante
+    que o Mem0 associa o fato a pessoa certa.
+
+    Em caso de falha, devolve fallback simples: "<nome> disse: <texto>".
+    """
+    try:
+        cliente = ia_service.get_openai()
+        relacao = f" ({pessoa.relacao})" if pessoa.relacao else ""
+        resp = await cliente.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "Voce reescreve mensagens em terceira pessoa, mantendo o significado. "
+                        "Substitua eu/me/meu/minha pelo nome da pessoa que mandou a mensagem. "
+                        "Mantenha tom natural e objetivo. Responda APENAS o texto reescrito."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": (
+                        f"Pessoa: {pessoa.nome}{relacao}\n"
+                        f"Mensagem original: {texto}\n\n"
+                        f"Reescreva em terceira pessoa, comecando com o nome da pessoa."
+                    ),
+                },
+            ],
+            max_tokens=200,
+            temperature=0,
+        )
+        reescrito = (resp.choices[0].message.content or "").strip()
+        if not reescrito:
+            return f"{pessoa.nome} disse: {texto}"
+        return reescrito
+    except Exception as e:
+        logger.warning("Falha ao reescrever em 3a pessoa: {}", str(e))
+        return f"{pessoa.nome} disse: {texto}"
+
+
 async def processar_texto_whatsapp(
     texto: str,
     pessoa: Pessoa,
@@ -331,11 +376,16 @@ async def processar_texto_whatsapp(
     Roda o pipeline NLP completo num texto recebido via WhatsApp.
 
     Acoes possiveis:
-      - Mem0 extrai fatos -> memorias
+      - Mem0 extrai fatos (em 3a pessoa) -> memorias
       - Parser detectar_evento -> eventos com pessoas_envolvidas=[pessoa.id]
       - Parser detectar_lembrete -> lembretes
       - Parser detectar_tarefa -> checklist
       - Parser detectar_tarefa_recorrente -> tarefas_agendadas
+
+    Os parsers (lembrete/tarefa/recorrente/evento) usam o cabecalho
+    "[Mensagem de X via WhatsApp]" porque entendem o formato.
+    O Mem0 recebe a versao em terceira pessoa para nao confundir o fato
+    do contato com fato do usuario do sistema.
 
     Retorna dict com o que foi criado (para log).
     """
@@ -348,7 +398,7 @@ async def processar_texto_whatsapp(
     resultado = {"memorias": False, "evento": None, "lembrete": None,
                  "tarefa": None, "recorrente": None}
 
-    # Roda 4 parsers em paralelo
+    # Roda 4 parsers em paralelo (com o contexto do cabecalho)
     try:
         lembrete_info, tarefa_info, recorrente_info, evento_info = await asyncio.gather(
             ia_service.detectar_lembrete(texto_com_contexto),
@@ -367,11 +417,18 @@ async def processar_texto_whatsapp(
         evento_info = None
 
     # ── Mem0 (background, nao bloqueia) ──────────────────────────────────
+    # Reescreve em 3a pessoa antes de mandar pro Mem0 — assim o fato fica
+    # associado a pessoa, nao ao usuario do sistema.
     async def _mem0_background():
         async with AsyncSessionLocal() as sess:
             try:
+                texto_3a_pessoa = await reescrever_em_terceira_pessoa(texto, pessoa)
+                logger.info(
+                    "Mem0 WhatsApp | original={!r} | reescrito={!r}",
+                    texto[:80], texto_3a_pessoa[:80],
+                )
                 await memoria_service.extrair_e_salvar_memoria(
-                    texto_com_contexto, id_usuario, sess
+                    texto_3a_pessoa, id_usuario, sess
                 )
                 await sess.commit()
             except Exception as e:
