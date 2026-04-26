@@ -486,12 +486,20 @@ async def processar_texto_whatsapp(
             from app.modules.lembretes.service import criar_lembrete
 
             dat_lembrete = datetime.fromisoformat(lembrete_info["dat_lembrete"])
+            titulo_orig = lembrete_info["titulo"]
             descricao_orig = lembrete_info.get("descricao") or ""
-            descricao = f"[{pessoa.nome}] {descricao_orig}".strip()
+
+            # Vincular pessoa NO TITULO (para IA ver o nome na busca semantica)
+            # e na descricao com a mensagem original (para contexto)
+            titulo = f"{titulo_orig} ({pessoa.nome})"
+            descricao_partes = [f"Mensagem de {pessoa.nome}", f'"{texto}"']
+            if descricao_orig:
+                descricao_partes.insert(1, descricao_orig)
+            descricao = " — ".join(descricao_partes)
 
             async with AsyncSessionLocal() as sess:
                 dados = LembreteCreate(
-                    titulo=lembrete_info["titulo"],
+                    titulo=titulo,
                     descricao=descricao,
                     dat_lembrete=dat_lembrete,
                 )
@@ -515,9 +523,15 @@ async def processar_texto_whatsapp(
                 id_lista = await buscar_ou_criar_lista(
                     tarefa_info.get("nome_lista"), id_usuario, sess
                 )
+                titulo_tarefa = f"{tarefa_info['titulo']} ({pessoa.nome})"
+                desc_orig_tarefa = tarefa_info.get("descricao") or ""
+                desc_partes_tarefa = [f"Mensagem de {pessoa.nome}", f'"{texto}"']
+                if desc_orig_tarefa:
+                    desc_partes_tarefa.insert(1, desc_orig_tarefa)
+                desc_tarefa = " — ".join(desc_partes_tarefa)
                 dados = TarefaCreate(
-                    titulo=tarefa_info["titulo"],
-                    descricao=f"[{pessoa.nome}] {tarefa_info.get('descricao') or ''}".strip(),
+                    titulo=titulo_tarefa,
+                    descricao=desc_tarefa,
                     prioridade=tarefa_info.get("prioridade", "media"),
                     dat_vencimento=dat_vencimento,
                     id_lista=id_lista,
