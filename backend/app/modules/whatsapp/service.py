@@ -55,11 +55,58 @@ PALAVRAS_URGENCIA = (
 
 # ─── Validacao do webhook ────────────────────────────────────────────────────
 
+# Ranges de IP da rede interna do Docker/EasyPanel.
+# Webhook so aceita requisicoes vindas desses ranges (containers da mesma VPS).
+_IP_PRIVADOS_PREFIXOS = ("10.", "172.", "192.168.", "127.")
+
+
 def validar_apikey(apikey_recebida: str | None) -> bool:
     """Compara apikey do header contra EVOLUTION_WEBHOOK_SECRET (constant-time)."""
     if not apikey_recebida or not settings.evolution_webhook_secret:
         return False
     return secrets.compare_digest(apikey_recebida, settings.evolution_webhook_secret)
+
+
+def ip_eh_rede_interna(ip: str | None) -> bool:
+    """True se o IP esta em range privado (Docker/VPS interna)."""
+    if not ip:
+        return False
+    return any(ip.startswith(p) for p in _IP_PRIVADOS_PREFIXOS)
+
+
+def validar_origem_webhook(
+    apikey_recebida: str | None,
+    instancia_payload: str | None,
+    ip_origem: str | None,
+) -> tuple[bool, str]:
+    """
+    Valida se o webhook veio de uma origem confiavel.
+
+    Aceita SE:
+      a) header `apikey` bate com EVOLUTION_WEBHOOK_SECRET (caminho preferido), OU
+      b) IP de origem e da rede interna (10.*, 172.*, 192.168.*) E
+         instancia no payload bate com EVOLUTION_INSTANCE_NAME
+
+    A condicao (b) cobre o caso da Evolution v2 que NAO envia header `apikey`
+    quando configurada via WEBHOOK_GLOBAL_URL (comportamento da v2.3.x).
+
+    Retorna (valido, motivo).
+    """
+    # Caminho A: header apikey (validacao forte)
+    if validar_apikey(apikey_recebida):
+        return True, "apikey_header"
+
+    # Caminho B: rede interna + instancia esperada
+    if not ip_eh_rede_interna(ip_origem):
+        return False, f"ip_externo:{ip_origem}"
+
+    if not settings.evolution_instance_name:
+        return False, "instance_name_nao_configurado"
+
+    if instancia_payload != settings.evolution_instance_name:
+        return False, f"instancia_diferente:{instancia_payload}"
+
+    return True, "rede_interna+instancia"
 
 
 # ─── Deduplicacao de eventos ────────────────────────────────────────────────

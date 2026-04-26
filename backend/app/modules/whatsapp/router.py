@@ -59,27 +59,29 @@ async def webhook(
         logger.debug("Webhook recebido mas WHATSAPP_ENABLED=false — ignorando")
         return {"acao": "desabilitado"}
 
-    # Validacao de apikey (constant-time)
-    if not service.validar_apikey(apikey):
-        client_ip = request.client.host if request.client else "?"
-        # Log temporario com prefixo da apikey recebida para diagnosticar 401
-        # NUNCA logar a apikey completa — so primeiros 8 caracteres
-        prefixo_recebido = (apikey[:8] + "...") if apikey else "VAZIA"
-        prefixo_esperado = (
-            (settings.evolution_webhook_secret[:8] + "...")
-            if settings.evolution_webhook_secret else "VAZIO"
-        )
-        logger.warning(
-            "Webhook WhatsApp com apikey invalida | ip={} | recebida={} | esperada={}",
-            client_ip, prefixo_recebido, prefixo_esperado,
-        )
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="apikey invalida")
-
-    # Parse defensivo
+    # Parse defensivo do body
     try:
         body: dict[str, Any] = await request.json()
     except Exception:
         raise HTTPException(status_code=400, detail="JSON invalido")
+
+    # Validacao de origem — aceita apikey OR (rede interna + instancia)
+    # Evolution v2.3 nao envia apikey no webhook global, por isso a 2a opcao
+    client_ip = request.client.host if request.client else None
+    instancia_payload = body.get("instance") if body else None
+
+    valido, motivo = service.validar_origem_webhook(
+        apikey_recebida=apikey,
+        instancia_payload=instancia_payload,
+        ip_origem=client_ip,
+    )
+
+    if not valido:
+        logger.warning(
+            "Webhook WhatsApp rejeitado | ip={} | motivo={}",
+            client_ip, motivo,
+        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="origem invalida")
 
     payload = EvolutionWebhookPayload(**body) if body else EvolutionWebhookPayload()
     payload_dict = payload.model_dump()
