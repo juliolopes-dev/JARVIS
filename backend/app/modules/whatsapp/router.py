@@ -62,7 +62,17 @@ async def webhook(
     # Validacao de apikey (constant-time)
     if not service.validar_apikey(apikey):
         client_ip = request.client.host if request.client else "?"
-        logger.warning("Webhook WhatsApp com apikey invalida | ip={}", client_ip)
+        # Log temporario com prefixo da apikey recebida para diagnosticar 401
+        # NUNCA logar a apikey completa — so primeiros 8 caracteres
+        prefixo_recebido = (apikey[:8] + "...") if apikey else "VAZIA"
+        prefixo_esperado = (
+            (settings.evolution_webhook_secret[:8] + "...")
+            if settings.evolution_webhook_secret else "VAZIO"
+        )
+        logger.warning(
+            "Webhook WhatsApp com apikey invalida | ip={} | recebida={} | esperada={}",
+            client_ip, prefixo_recebido, prefixo_esperado,
+        )
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="apikey invalida")
 
     # Parse defensivo
