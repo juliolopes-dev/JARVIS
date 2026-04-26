@@ -43,6 +43,12 @@ class Pessoa(Base):
     notas: Mapped[str | None] = mapped_column(Text)
     metadados: Mapped[dict | None] = mapped_column(JSONB)
     flg_ativo: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    # WhatsApp Modo 1 — opt-in por pessoa (whitelist)
+    # Numero formato internacional sem +/espacos: "5588981504634"
+    numero_whatsapp: Mapped[str | None] = mapped_column(String(20), unique=True, index=True, nullable=True)
+    flg_monitorar_whatsapp: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+
     criado_em: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

@@ -18,14 +18,26 @@ export const memoriaService = {
     return res.data
   },
 
-  async criarPessoa(dados: { nome: string; relacao?: string; notas?: string }): Promise<Pessoa> {
+  async criarPessoa(dados: {
+    nome: string
+    relacao?: string
+    notas?: string
+    numero_whatsapp?: string | null
+    flg_monitorar_whatsapp?: boolean
+  }): Promise<Pessoa> {
     const res = await api.post<Pessoa>('/memoria/pessoas', dados)
     return res.data
   },
 
   async atualizarPessoa(
     id: string,
-    dados: { nome?: string; relacao?: string; notas?: string }
+    dados: {
+      nome?: string
+      relacao?: string
+      notas?: string
+      numero_whatsapp?: string | null
+      flg_monitorar_whatsapp?: boolean
+    }
   ): Promise<Pessoa> {
     const res = await api.put<Pessoa>(`/memoria/pessoas/${id}`, dados)
     return res.data

@@ -410,11 +410,149 @@ Lista de 10 features ordenadas por impacto real no dia-a-dia. Serao desenvolvida
 - Integra com briefing diario ja existente
 - Esforco: 1 dia
 
-#### 3. WhatsApp MCP
-- Stack: Baileys ou Evolution API (rodam self-hosted)
-- Acoes: resumir grupo da familia, responder cliente, detectar quem mandou mensagem
-- Maior ganho de tempo no Brasil — nao existe MCP oficial ainda, precisa construir
-- Esforco: 3-4 dias
+#### 3. WhatsApp via Evolution API (planejado em 2026-04-25)
+
+**Stack:** Evolution API v2.3.7 self-hosted no EasyPanel (Docker oficial + Postgres/Redis proprios da Evolution, separados do banco do Jarvis). Documentacao: https://doc.evolution-api.com/v2
+
+**Ambiente em producao (confirmado em 2026-04-26):**
+- URL: `https://evolution.lopestechhub.com.br` (HTTPS via Let's Encrypt no EasyPanel — destino interno HTTP:8080)
+- Versao: 2.3.7
+- Instancia ativa: `juliolopes` (numero pessoal do Julio, ja conectada)
+- API key da instancia: gerenciada em variavel `.env` (gitignored), NUNCA commitar
+- Postgres dedicado: `<project>_evolution-api-db`
+- Redis dedicado: `<project>_evolution-api-redis`
+- `DEL_INSTANCE=false` (sessao Baileys protegida)
+- `WEBHOOK_GLOBAL_ENABLED=true` (sera ativado no setup do Modo 1)
+- Webhook global apontando para Jarvis: `https://applications-jarvis.tbs25p.easypanel.host/api/whatsapp/webhook`
+- Webhook DA INSTANCIA juliolopes ja existe e aponta para n8n (automacao diaria — NAO MEXER)
+
+**Por que webhook global em vez de webhook da instancia:** a instancia `juliolopes` ja tem webhook configurado para uma automacao do n8n que envia mensagem diaria para um numero. Trocar o webhook da instancia quebraria essa automacao. Webhook global funciona em paralelo — Evolution dispara eventos para AMBOS os destinos (n8n recebe via webhook da instancia, Jarvis recebe via webhook global). Filtro do lado do Jarvis (`fromMe=true` e whitelist `flg_monitorar_whatsapp`) garante que so processa o que interessa.
+
+**Caso de uso:** Julio nao quer "ChatGPT no zap" — quer o Jarvis observando o WhatsApp dele e capturando contexto de contatos especificos (patrao, esposa, familia). Foco em **memoria + eventos automaticos**, nao em conversa bidirecional.
+
+**Numero usado:** o proprio numero do Julio (nao chip novo). Trava: no Modo 1 o Jarvis nunca chama `/message/sendText`, so observa.
+
+**Migrar automacao n8n → Jarvis:** registrado como Fase WhatsApp 2.5 (entre Modo 2 e Grupos). NAO faz parte do escopo Modo 1.
+
+##### Modo 1 — Observador (FAZER PRIMEIRO, 2-3 dias)
+
+Reaproveita 90% da infra que ja existe — sem tabelas novas para mensagens.
+
+**Fluxo:**
+```
+Mensagem WhatsApp do contato monitorado
+   ↓
+Webhook POST /api/whatsapp/webhook (sem JWT, valida apikey da Evolution)
+   ↓
+Identifica Pessoa pelo numero. Se nao monitorada → ignora silenciosamente
+   ↓
+Salva como Mensagem (papel="user") na Conversa unica daquele contato
+   (titulo="WhatsApp: Patrao Carlos", metadados={tipo:"whatsapp", id_pessoa, numero})
+   ↓
+Audio? Whisper-1 (ja integrado) transcreve antes
+   ↓
+Pipeline existente: 4 parsers NLP + Mem0 + extrator de eventos
+   - Mem0 → memorias (fatos atemporais)
+   - Parser evento → eventos com pessoas_envolvidas=[id_pessoa]
+   - Parser lembrete/tarefa/recorrente → lembretes/tarefas se aplicavel
+   ↓
+Score de urgencia ("urgente", "agora", "?") → Web Push opcional
+```
+
+**Mudancas no banco (1 migration pequena):**
+- `pessoas`: adicionar `numero_whatsapp VARCHAR(20) UNIQUE`, `flg_monitorar_whatsapp BOOLEAN DEFAULT false`
+- Reusar `conversas`/`mensagens` com `metadados.tipo="whatsapp"` — SEM tabela nova
+
+**Modulo novo `backend/app/modules/whatsapp/`:**
+- `client.py` — HTTPX client da Evolution (sendText, fetchInstance, setWebhook)
+- `service.py` — webhook handler: filtra contato → roda pipeline existente
+- `router.py` — `POST /api/whatsapp/webhook` (publica), `GET /api/whatsapp/status` (auth), `POST /api/whatsapp/qrcode` (auth)
+- `schemas.py` — payloads Evolution (MESSAGES_UPSERT, CONNECTION_UPDATE)
+
+**Frontend:**
+- Pagina `/pessoas` ganha 2 campos: `numero_whatsapp` + toggle `flg_monitorar_whatsapp`
+- Nova pagina `/whatsapp` apenas para status da Evolution (conectado/desconectado, QR Code para reconectar, contador do dia)
+- Memorias e Eventos da pessoa ja aparecem automaticamente nas paginas existentes — zero UI nova
+
+**Configuracao Evolution na criacao da instancia:**
+```json
+{
+  "instanceName": "jarvis",
+  "integration": "WHATSAPP-BAILEYS",
+  "groupsIgnore": true,
+  "readMessages": false,
+  "readStatus": false,
+  "alwaysOnline": false,
+  "syncFullHistory": false,
+  "webhook": {
+    "url": "https://jarvis.seudominio.com.br/api/whatsapp/webhook",
+    "byEvents": false,
+    "events": ["MESSAGES_UPSERT", "CONNECTION_UPDATE"]
+  }
+}
+```
+
+**Variaveis de ambiente novas:**
+```env
+EVOLUTION_API_URL=https://evolution.seudominio.com.br
+EVOLUTION_API_KEY=chave-da-instancia
+EVOLUTION_INSTANCE_NAME=jarvis
+EVOLUTION_WEBHOOK_SECRET=segredo-para-validar-webhook
+```
+
+**Riscos:**
+- Ban WhatsApp (Baileys nao-oficial) → flags conservadoras acima + numero pessoal so, sem disparo em massa
+- Sessao Baileys perde no restart → backup do banco da Evolution semanal
+- Webhook publico → validar `apikey` no header em TODA requisicao
+
+##### Modo 2 — Comandante via "Jarvis,..." (DEPOIS, +1 dia)
+
+Apos Modo 1 estavel. Detecta comando do proprio Julio:
+
+```
+Mensagem com fromMe=true E texto.lower().startswith("jarvis,")
+   ↓
+Tira o "Jarvis," do inicio
+   ↓
+Manda pro chat existente (modulo chat/service.py) — mesma logica do chat web
+   ↓
+Resposta do Claude → envia via /message/sendText/{instance} no MESMO numero/chat
+```
+
+**UX recomendada:** Julio cria um contato no zap chamado "Jarvis" apontando pro proprio numero (ou usa "mensagens salvas") — assim so processa comando quando ele explicitamente fala com "o Jarvis", nunca em conversa real com outra pessoa.
+
+**Acoes possiveis pelo Modo 2:**
+- "Jarvis, anota: comprar pao" → cria tarefa no checklist
+- "Jarvis, o que o patrao me pediu hoje?" → consulta memorias/eventos do Patrao Carlos
+- "Jarvis, manda 'to a caminho' pro Maria" → dispara via Evolution
+
+##### Fase posterior (NAO fazer agora)
+
+- **Grupos** — alto volume polui Mem0 e aumenta risco de ban. Quando fizer: so processa msg que menciona o usuario (`@numero`) ou e resposta a uma msg dele
+- **Audio de resposta** — depende ElevenLabs/TTS (Fase 5)
+- **Pesquisar contatos no historico** — aba dedicada com timeline visual da conversa por contato (alem da memoria/eventos atuais)
+- **Resumir grupo da familia** — workflow que roda 1x ao dia se Julio quiser
+- **Responder cliente automaticamente** — fora de escopo (alto risco)
+
+##### Ordem de implementacao Modo 1
+
+1. Subir Evolution API no EasyPanel (Docker oficial + Postgres/Redis dedicados) — meio dia
+2. Conectar numero, escanear QR, validar com mensagem de teste — 1h
+3. Migration: 2 campos novos em `pessoas` — 30min
+4. Modulo `whatsapp/` backend (client + service + router) — 1 dia
+5. Integracao com `chat/service.py` (reusar pipeline) — meio dia
+6. Frontend: campos em /pessoas + pagina /whatsapp de status — meio dia
+7. Testar com 1 contato monitorado em producao — meio dia
+
+**Total estimado: 2.5-3 dias**
+
+##### Por que essa abordagem
+
+- **Sem tabela nova de mensagens** — reusa `conversas`/`mensagens` com `metadados.tipo`
+- **Sem tabela nova de contatos monitorados** — reusa `pessoas` com 2 colunas a mais
+- **Pipeline NLP intocado** — parsers + Mem0 + eventos ja sabem processar texto livre
+- **UI quase de graca** — Memorias e Eventos da pessoa aparecem nas paginas existentes
+- **Risco controlado** — Modo 1 nunca envia mensagem, so observa
 
 #### 4. Proatividade — Jarvis te procura sem voce pedir
 - Alem do briefing fixo das 8h, Jarvis detecta eventos e avisa:
@@ -583,7 +721,7 @@ Lista de 10 features ordenadas por impacto real no dia-a-dia. Serao desenvolvida
 - **`server_default=func.now()` empata timestamps na mesma transacao** — usuario e assistente salvos no mesmo request do chat ficavam com `criado_em` identicos. Resolvido com desempate secundario `ORDER BY criado_em DESC, papel ASC` + `reversed()` em `listar_mensagens`
 
 ## Ultima Sessao
-**2026-04-25** — Fix do parser de tarefa recorrente. Bug: mensagem "Informo que a reuniao da diretoria mensal, realizada regularmente no primeiro sabado de cada mes, ocorrera no dia 02/05/2026" nao salvava lembrete. Causa raiz: o `TAREFA_RECORRENTE_PARSE_PROMPT` aceitava trechos como "todo primeiro sabado de cada mes" como recorrencia, mesmo quando a frase tambem informava UMA data unica especifica. Como `service.py:117` anula lembrete quando recorrente dispara, o lembrete nunca era salvo. Bonus: o cron gerado (`0 0 * * 6#1`) usa sintaxe `6#1` que o APScheduler nao suporta, falharia ao agendar de qualquer forma. Correcao: adicionados 4 exemplos negativos no prompt do recorrente + REGRA CRITICA explicita: "se menciona DATA ESPECIFICA UNICA (dd/mm/aaaa, amanha, sexta, dia 25), NAO e recorrente — e lembrete pontual". Validado via script de teste com a mensagem real: lembrete agora dispara, recorrente nao. Evento continua disparando (registro na memoria episodica).
+**2026-04-25** — 3 entregas: (1) Fix do parser de tarefa recorrente (commit `24ae41a` + push deploy EasyPanel). Bug: mensagem "Informo que a reuniao da diretoria mensal, realizada regularmente no primeiro sabado de cada mes, ocorrera no dia 02/05/2026" nao salvava lembrete. Causa raiz: o `TAREFA_RECORRENTE_PARSE_PROMPT` aceitava trechos como "todo primeiro sabado de cada mes" como recorrencia, mesmo quando a frase tambem informava UMA data unica especifica. Como `service.py:117` anula lembrete quando recorrente dispara, o lembrete nunca era salvo. Bonus: o cron gerado (`0 0 * * 6#1`) usa sintaxe `6#1` que o APScheduler nao suporta, falharia ao agendar de qualquer forma. Correcao: adicionados 4 exemplos negativos no prompt do recorrente + REGRA CRITICA explicita: "se menciona DATA ESPECIFICA UNICA (dd/mm/aaaa, amanha, sexta, dia 25), NAO e recorrente — e lembrete pontual". Validado via script de teste com a mensagem real. (2) MCP `jarvis-db` configurado em `c:/JARVIS/.mcp.json` (no `.gitignore` por conter senha) — agora consultas diretas ao PostgreSQL da VPS sem subir backend. (3) Teste comparativo de modelos para os 4 parsers NLP: `gpt-4o` (92% acerto, $310/ano) vs `gpt-4o-mini` (58%, $18/ano) vs `gpt-4.1-mini` (58%, $50/ano). Decisao: manter `gpt-4o` em tudo. Mini erra 33% no parser de tarefa por viesar positivo, gerando duplicacao de itens — economia de $290/ano nao compensa retrabalho. Revisitar na Fase 5 quando agentes autonomos aumentarem volume.
 
 **2026-04-24** — Fix dos parsers NLP do chat. Bug: frases declarativas com horario especifico ("amanha tenho reuniao com X as 9:30") nao criavam lembrete nem evento — so extraiam fato via Mem0. Causa raiz: `LEMBRETE_PARSE_PROMPT` so tinha exemplos imperativos ("me lembra..."), e `EVENTO_PARSE_PROMPT` nao cobria reunioes futuras proximas. Correcoes: (1) novos exemplos declarativos com horario no prompt de lembrete, com REGRA explicita; (2) novos exemplos de reunioes futuras no prompt de evento; (3) lembrete e evento passaram a coexistir — removido `lembrete_info` da condicao de supressao em `chat/service.py`; (4) adicionado tratamento de `"amanha"` no switch `quando_raw` (bug colateral encontrado pela Vera: valores novos no prompt que o codigo nao tratava salvavam data errada). Commit `a571052` + push → deploy EasyPanel.
 
@@ -747,4 +885,6 @@ backend/app/modules/agentes/
 | 2026-04-19 | Fase D (memoria episodica) completa — tabela eventos (dat_ocorreu, resumo, categoria, lojas, pessoas_envolvidas, embedding 1536), quarto parser NLP detectar_evento em paralelo com criterio amplo, marcador [EVENTO_REGISTRADO], backfill idempotente de historico (7 eventos criados), aba Eventos na MemoriaPage com filtros por categoria |
 | 2026-04-19 | Fix ordem de mensagens no chat — server_default=func.now() empatava timestamps user+assistant na mesma transacao, virando ordem indeterministica. Desempate por `papel.asc()` na query DESC com `reversed()` no fim |
 | 2026-04-24 | Fix parsers NLP — frases declarativas com horario ("amanha tenho reuniao as X") agora criam lembrete + evento. Lembrete e evento podem coexistir. Fix colateral: tratamento de "amanha" no switch quando_raw do service.py |
-| 2026-04-25 | Fix parser de tarefa recorrente — frases que descrevem regularidade mas informam UMA data unica ("reuniao mensal, ocorrera em 02/05/2026") nao disparam mais como recorrente. Bug bloqueava criacao de lembrete porque service.py prioriza recorrente. Adicionados 4 exemplos negativos + REGRA CRITICA no `TAREFA_RECORRENTE_PARSE_PROMPT` |
+| 2026-04-25 | Fix parser de tarefa recorrente — frases que descrevem regularidade mas informam UMA data unica ("reuniao mensal, ocorrera em 02/05/2026") nao disparam mais como recorrente. Bug bloqueava criacao de lembrete porque service.py prioriza recorrente. Adicionados 4 exemplos negativos + REGRA CRITICA no `TAREFA_RECORRENTE_PARSE_PROMPT`. Commit `24ae41a` + push deploy EasyPanel |
+| 2026-04-25 | MCP `jarvis-db` configurado em `.mcp.json` (gitignored) — consultas diretas ao PostgreSQL da VPS sem subir backend |
+| 2026-04-25 | Decisao: manter `gpt-4o` em todos os 4 parsers NLP. Teste comparativo com 12 mensagens reais mostrou gpt-4o-mini com 58% de acerto (vs 92% do 4o), errando por viesar tarefa positiva — duplicacao de itens. Economia de $290/ano nao justifica retrabalho. Revisitar na Fase 5 |

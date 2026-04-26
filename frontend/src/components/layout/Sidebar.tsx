@@ -15,6 +15,7 @@ import {
   PanelLeftOpen,
   BookOpen,
   DollarSign,
+  MessageCircle,
 } from 'lucide-react'
 import { cn } from '@/utils/cn'
 import { useAppStore } from '@/store/useAppStore'
@@ -101,6 +102,7 @@ export function Sidebar() {
     { path: '/notificacoes', label: 'Notificações', icon: Bell, badge: naoLidas },
     { path: '/livros', label: 'Livros', icon: BookOpen, badge: 0 },
     { path: '/memoria', label: 'Memória', icon: Brain, badge: 0 },
+    { path: '/whatsapp', label: 'WhatsApp', icon: MessageCircle, badge: 0 },
     { path: '/custos', label: 'Custos', icon: DollarSign, badge: 0 },
     { path: '/config', label: 'Configurações', icon: Settings, badge: 0 },
   ]

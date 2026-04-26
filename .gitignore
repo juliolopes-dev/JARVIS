@@ -4,6 +4,9 @@
 .env.*.local
 *.env
 
+# MCP local (contem credencial do banco)
+.mcp.json
+
 # Python
 __pycache__/
 *.py[cod]

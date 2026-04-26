@@ -54,7 +54,13 @@ export function MemoriaPage() {
   const [carregando, setCarregando] = useState(true)
   const [modalPessoa, setModalPessoa] = useState(false)
   const [pessoaEditando, setPessoaEditando] = useState<Pessoa | null>(null)
-  const [formPessoa, setFormPessoa] = useState({ nome: '', relacao: '', notas: '' })
+  const [formPessoa, setFormPessoa] = useState({
+    nome: '',
+    relacao: '',
+    notas: '',
+    numero_whatsapp: '',
+    flg_monitorar_whatsapp: false,
+  })
   const [salvando, setSalvando] = useState(false)
 
   useEffect(() => {
@@ -123,7 +129,13 @@ export function MemoriaPage() {
 
   function abrirModalNovaPessoa() {
     setPessoaEditando(null)
-    setFormPessoa({ nome: '', relacao: '', notas: '' })
+    setFormPessoa({
+      nome: '',
+      relacao: '',
+      notas: '',
+      numero_whatsapp: '',
+      flg_monitorar_whatsapp: false,
+    })
     setModalPessoa(true)
   }
 
@@ -133,6 +145,8 @@ export function MemoriaPage() {
       nome: pessoa.nome,
       relacao: pessoa.relacao ?? '',
       notas: pessoa.notas ?? '',
+      numero_whatsapp: pessoa.numero_whatsapp ?? '',
+      flg_monitorar_whatsapp: pessoa.flg_monitorar_whatsapp ?? false,
     })
     setModalPessoa(true)
   }
@@ -141,12 +155,21 @@ export function MemoriaPage() {
     if (!formPessoa.nome.trim()) return
     setSalvando(true)
     try {
+      // Numero so com digitos — backend usa formato internacional sem +/espacos
+      const numeroLimpo = formPessoa.numero_whatsapp.replace(/\D/g, '') || null
+      const payload = {
+        nome: formPessoa.nome,
+        relacao: formPessoa.relacao,
+        notas: formPessoa.notas,
+        numero_whatsapp: numeroLimpo,
+        flg_monitorar_whatsapp: formPessoa.flg_monitorar_whatsapp,
+      }
       if (pessoaEditando) {
-        const atualizada = await memoriaService.atualizarPessoa(pessoaEditando.id, formPessoa)
+        const atualizada = await memoriaService.atualizarPessoa(pessoaEditando.id, payload)
         setPessoas((prev) => prev.map((p) => (p.id === atualizada.id ? atualizada : p)))
         toast.success('Pessoa atualizada')
       } else {
-        const nova = await memoriaService.criarPessoa(formPessoa)
+        const nova = await memoriaService.criarPessoa(payload)
         setPessoas((prev) => [nova, ...prev])
         toast.success('Pessoa adicionada')
       }
@@ -321,6 +344,36 @@ export function MemoriaPage() {
                   rows={3}
                   className="w-full rounded px-3 py-2.5 bg-surface-raised border border-surface-border text-sm text-text-primary placeholder:text-text-faint resize-none focus:outline-none focus:border-accent focus:shadow-glow transition-all"
                 />
+              </div>
+              <div className="pt-3 border-t border-surface-border space-y-3">
+                <div className="text-xs font-medium text-text-secondary">WhatsApp (Modo Observador)</div>
+                <div>
+                  <Input
+                    label="Número"
+                    value={formPessoa.numero_whatsapp}
+                    onChange={(e) => setFormPessoa((p) => ({ ...p, numero_whatsapp: e.target.value }))}
+                    placeholder="558988887777"
+                  />
+                  <p className="text-2xs text-text-faint mt-1">
+                    Formato internacional, só dígitos (ex: 5588981504634)
+                  </p>
+                </div>
+                <label className="flex items-start gap-2.5 cursor-pointer group">
+                  <input
+                    type="checkbox"
+                    checked={formPessoa.flg_monitorar_whatsapp}
+                    onChange={(e) => setFormPessoa((p) => ({ ...p, flg_monitorar_whatsapp: e.target.checked }))}
+                    className="mt-0.5 w-4 h-4 rounded border-surface-border bg-surface-raised text-accent focus:ring-accent cursor-pointer"
+                  />
+                  <div className="flex-1">
+                    <div className="text-xs font-medium text-text-primary group-hover:text-accent transition-colors">
+                      Monitorar mensagens dessa pessoa
+                    </div>
+                    <div className="text-2xs text-text-faint mt-0.5">
+                      Jarvis vai ler mensagens do WhatsApp dela e extrair memórias, eventos e lembretes automaticamente. Nunca responde — apenas observa.
+                    </div>
+                  </div>
+                </label>
               </div>
             </div>
             <div className="flex justify-end gap-2 px-5 py-4 border-t border-surface-border">

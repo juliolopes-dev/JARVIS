@@ -20,6 +20,8 @@ class PessoaCreate(BaseModel):
     relacao: str | None = None
     notas: str | None = None
     metadados: dict | None = None
+    numero_whatsapp: str | None = None
+    flg_monitorar_whatsapp: bool = False
 
 
 class PessoaUpdate(BaseModel):
@@ -27,6 +29,8 @@ class PessoaUpdate(BaseModel):
     relacao: str | None = None
     notas: str | None = None
     metadados: dict | None = None
+    numero_whatsapp: str | None = None
+    flg_monitorar_whatsapp: bool | None = None
 
 
 class PessoaResponse(BaseModel):
@@ -36,6 +40,8 @@ class PessoaResponse(BaseModel):
     relacao: str | None
     notas: str | None
     metadados: dict | None
+    numero_whatsapp: str | None
+    flg_monitorar_whatsapp: bool
     flg_ativo: bool
     criado_em: datetime
 

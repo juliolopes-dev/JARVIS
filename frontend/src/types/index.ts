@@ -30,8 +30,28 @@ export interface Pessoa {
   nome: string
   relacao: string | null
   notas: string | null
+  numero_whatsapp: string | null
+  flg_monitorar_whatsapp: boolean
   flg_ativo: boolean
   criado_em: string
+}
+
+export interface WhatsAppStatus {
+  enabled: boolean
+  instancia: string
+  conectado: boolean
+  state: string
+  profile_name: string | null
+  profile_picture_url: string | null
+  mensagens_hoje: number
+  ultima_mensagem_em: string | null
+  contatos_monitorados: number
+}
+
+export interface WhatsAppQrCode {
+  qrcode_base64: string | null
+  code: string | null
+  state: string
 }
 
 export interface Evento {

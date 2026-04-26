@@ -65,6 +65,13 @@ class Settings(BaseSettings):
     vapid_private_key: str = ""
     vapid_claims_email: str = ""
 
+    # WhatsApp via Evolution API (Modo 1 — Observador)
+    evolution_api_url: str = ""
+    evolution_api_key: str = ""
+    evolution_instance_name: str = ""
+    evolution_webhook_secret: str = ""
+    whatsapp_enabled: bool = False
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 
 

@@ -21,6 +21,7 @@ from app.modules.config.router import router as config_router
 from app.modules.livros.router import router as livros_router
 from app.modules.tarefas.router import router as tarefas_router
 from app.modules.custos.router import router as custos_router
+from app.modules.whatsapp.router import router as whatsapp_router
 
 
 # ─── Loguru ──────────────────────────────────────────────────────────────────
@@ -155,6 +156,7 @@ app.include_router(config_router, prefix="/api/config", tags=["config"])
 app.include_router(livros_router, prefix="/api/livros", tags=["livros"])
 app.include_router(tarefas_router, prefix="/api/tarefas-agendadas", tags=["tarefas-agendadas"])
 app.include_router(custos_router, prefix="/api", tags=["custos"])
+app.include_router(whatsapp_router, prefix="/api/whatsapp", tags=["whatsapp"])
 
 
 @app.get("/api/health", tags=["sistema"])
