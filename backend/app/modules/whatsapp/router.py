@@ -25,7 +25,6 @@ from app.modules.memoria.models import Pessoa
 from app.modules.whatsapp import service
 from app.modules.whatsapp.client import EvolutionAPIError, client as evolution_client
 from app.modules.whatsapp.schemas import (
-    EvolutionWebhookPayload,
     QrCodeResponse,
     ReconectarResponse,
     StatusResponse,
@@ -83,18 +82,20 @@ async def webhook(
         )
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="origem invalida")
 
-    payload = EvolutionWebhookPayload(**body) if body else EvolutionWebhookPayload()
-    payload_dict = payload.model_dump()
-    # Mantem o dict original (extras) — o Pydantic perde campos desconhecidos no dump
-    payload_dict.update({"data": body.get("data", {})})
-
-    evento = (payload.event or body.get("event") or "").lower().replace("_", ".")
+    # Trabalhamos direto com o dict do body — sem Pydantic — porque a Evolution
+    # envia varios formatos de `data` (dict para messages.upsert, list para
+    # contacts.upsert/chats.upsert). Validar com schema rigido geraria 500.
+    evento = (body.get("event") or "").lower().replace("_", ".")
 
     try:
         if evento in ("messages.upsert",):
-            resultado = await service.processar_webhook_messages_upsert(payload_dict, db)
+            # data DEVE ser dict para messages.upsert — se vier list, ignora
+            if not isinstance(body.get("data"), dict):
+                resultado = {"acao": "ignorado", "motivo": "data_nao_dict", "evento": evento}
+            else:
+                resultado = await service.processar_webhook_messages_upsert(body, db)
         elif evento in ("connection.update",):
-            resultado = await service.processar_webhook_connection_update(payload_dict)
+            resultado = await service.processar_webhook_connection_update(body)
         else:
             resultado = {"acao": "ignorado", "evento": evento}
     except Exception as e:

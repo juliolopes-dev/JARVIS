@@ -27,10 +27,13 @@ class EvolutionWebhookPayload(BaseModel):
     """
     Payload generico que a Evolution envia para o webhook global.
     Apenas campos usados pelo Modo 1 — outros sao ignorados (extra="allow").
+
+    `data` aceita dict OU list — Evolution v2 manda dict para messages.upsert
+    e list para contacts.upsert/chats.upsert. Schema flexivel evita 500.
     """
     event: str = ""               # "messages.upsert" | "connection.update" | etc
     instance: str = ""            # nome da instancia (ex: "juliolopes")
-    data: dict[str, Any] = Field(default_factory=dict)
+    data: dict[str, Any] | list[Any] | None = None
     apikey: str | None = None     # token da instancia (validacao adicional)
     server_url: str | None = None
     date_time: str | None = None
