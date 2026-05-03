@@ -434,7 +434,16 @@ Lista de 10 features ordenadas por impacto real no dia-a-dia. Serao desenvolvida
 
 **Migrar automacao n8n → Jarvis:** registrado como Fase WhatsApp 2.5 (entre Modo 2 e Grupos). NAO faz parte do escopo Modo 1.
 
-##### Modo 1 — Observador (FAZER PRIMEIRO, 2-3 dias)
+##### Modo 1 — Observador ✅ IMPLEMENTADO E EM PRODUCAO (2026-04-26)
+
+**Validado em producao:** mensagens reais via NEXUS (558981504634) processaram corretamente — Mem0 extraiu fatos vinculados a pessoa, lembrete criado com data/hora correta, push de urgencia disparou. Conversa "WhatsApp: NEXUS" criada e persistida.
+
+**Fixes descobertos durante a validacao em producao (registrados em licoes.md):**
+
+1. **Evolution v2.3 nao envia header `apikey` no webhook global** — solucao: validar por (rede interna 10.x/172.x/192.168.x) + (instance no body bate com EVOLUTION_INSTANCE_NAME). Trafego dentro da VPS nao expoe a webhook publico.
+2. **`data` do payload pode ser dict OU list** — Evolution manda dict para messages.upsert mas list para contacts.upsert/chats.upsert. Pydantic com schema rigido quebrava com 500 e Evolution reenviava em loop. Solucao: trabalhar direto com o dict do body, sem validar via Pydantic.
+3. **Mem0 salvava fato em primeira pessoa do USUARIO** — "Estou com gripe" virava fato do Julio, nao do contato. Solucao: GPT-4o-mini reescreve em terceira pessoa antes de mandar pro Mem0 ("NEXUS esta com gripe forte").
+4. **Lembrete/tarefa criados via WhatsApp ficavam genericos** — `titulo="Consulta medica"` + `descricao="[NEXUS]"` nao permitia IA inferir vinculo. Solucao: nome no titulo (`"Consulta medica (NEXUS)"`) + descricao com mensagem original (`'Mensagem de NEXUS — "Tenho consulta amanha as 14h"'`).
 
 Reaproveita 90% da infra que ja existe — sem tabelas novas para mensagens.
 
@@ -721,15 +730,20 @@ Resposta do Claude → envia via /message/sendText/{instance} no MESMO numero/ch
 - **`server_default=func.now()` empata timestamps na mesma transacao** — usuario e assistente salvos no mesmo request do chat ficavam com `criado_em` identicos. Resolvido com desempate secundario `ORDER BY criado_em DESC, papel ASC` + `reversed()` em `listar_mensagens`
 
 ## Ultima Sessao
+**2026-04-26** — Implementacao completa do **WhatsApp Modo 1 (Observador) via Evolution API v2.3** validada em producao. Entregas: (1) Modulo `app/modules/whatsapp/` com client HTTPX, webhook publico (validado por rede interna + nome da instancia, ja que Evolution v2.3 nao envia apikey no webhook global), pipeline NLP completo reaproveitando 4 parsers + Mem0 + eventos, score de urgencia normalizado sem acento, kill switch via `WHATSAPP_ENABLED`, dedup via Redis SETNX. (2) Migration: 2 campos novos em `pessoas` (`numero_whatsapp` unique + `flg_monitorar_whatsapp`). (3) Pagina `/whatsapp` com status, QR, contadores. (4) Integracao com a aba Pessoas em `MemoriaPage.tsx` — toggle de monitoramento. (5) Validacao em producao com NEXUS (558981504634): mensagem de gripe extraida como fato vinculado a pessoa, lembrete de consulta criado com data correta (27/04 14h BRT), push de urgencia disparou. Comprometeram **5 commits**: `b8437ba` (feat principal), `a7177f7` (debug log apikey), `c10bbe8` (fallback rede interna), `d8448e1` (fix data como list), `8a57203` (reescrita 3a pessoa pro Mem0), `928216d` (nome no titulo de lembrete/tarefa). Todos os 4 fixes registrados em `licoes.md`. Modo 2 (Comandante) e Fase WhatsApp 2.5 (migrar automacao n8n) registrados como roadmap futuro.
+
 **2026-04-25** — 3 entregas: (1) Fix do parser de tarefa recorrente (commit `24ae41a` + push deploy EasyPanel). Bug: mensagem "Informo que a reuniao da diretoria mensal, realizada regularmente no primeiro sabado de cada mes, ocorrera no dia 02/05/2026" nao salvava lembrete. Causa raiz: o `TAREFA_RECORRENTE_PARSE_PROMPT` aceitava trechos como "todo primeiro sabado de cada mes" como recorrencia, mesmo quando a frase tambem informava UMA data unica especifica. Como `service.py:117` anula lembrete quando recorrente dispara, o lembrete nunca era salvo. Bonus: o cron gerado (`0 0 * * 6#1`) usa sintaxe `6#1` que o APScheduler nao suporta, falharia ao agendar de qualquer forma. Correcao: adicionados 4 exemplos negativos no prompt do recorrente + REGRA CRITICA explicita: "se menciona DATA ESPECIFICA UNICA (dd/mm/aaaa, amanha, sexta, dia 25), NAO e recorrente — e lembrete pontual". Validado via script de teste com a mensagem real. (2) MCP `jarvis-db` configurado em `c:/JARVIS/.mcp.json` (no `.gitignore` por conter senha) — agora consultas diretas ao PostgreSQL da VPS sem subir backend. (3) Teste comparativo de modelos para os 4 parsers NLP: `gpt-4o` (92% acerto, $310/ano) vs `gpt-4o-mini` (58%, $18/ano) vs `gpt-4.1-mini` (58%, $50/ano). Decisao: manter `gpt-4o` em tudo. Mini erra 33% no parser de tarefa por viesar positivo, gerando duplicacao de itens — economia de $290/ano nao compensa retrabalho. Revisitar na Fase 5 quando agentes autonomos aumentarem volume.
 
 **2026-04-24** — Fix dos parsers NLP do chat. Bug: frases declarativas com horario especifico ("amanha tenho reuniao com X as 9:30") nao criavam lembrete nem evento — so extraiam fato via Mem0. Causa raiz: `LEMBRETE_PARSE_PROMPT` so tinha exemplos imperativos ("me lembra..."), e `EVENTO_PARSE_PROMPT` nao cobria reunioes futuras proximas. Correcoes: (1) novos exemplos declarativos com horario no prompt de lembrete, com REGRA explicita; (2) novos exemplos de reunioes futuras no prompt de evento; (3) lembrete e evento passaram a coexistir — removido `lembrete_info` da condicao de supressao em `chat/service.py`; (4) adicionado tratamento de `"amanha"` no switch `quando_raw` (bug colateral encontrado pela Vera: valores novos no prompt que o codigo nao tratava salvavam data errada). Commit `a571052` + push → deploy EasyPanel.
 
 ## Proximos Passos
-1. **Fase 4 (Integracoes)** — MCP Gmail, Google Calendar, Web Search (Fase 3 ✅ 100% concluida)
-2. **Testar audio no iOS** — verificar se `audio/mp4` funciona no Safari/iPhone
-3. **Upload PDF lento** — processamento sincrono pode travar em PDFs grandes; considerar background task
-4. **Validar tarefas recorrentes em producao** — deploy novo modulo tarefas, criar tarefa "todo dia 8h" pelo chat e confirmar push chega
+1. **Cadastrar contatos reais no WhatsApp Modo 1** — patrao, esposa, familia. Comecar com 2-3 e ampliar conforme uso.
+2. **Avaliar acuracia da extracao Mem0 via WhatsApp** — apos 1 semana de uso real, conferir se memorias e eventos vinculados estao sendo precisos. Se houver muitos falsos positivos/negativos, ajustar prompts.
+3. **WhatsApp Modo 2 (Comandante)** — adicionar deteccao de "Jarvis,..." no webhook (~1 dia). Permite Julio comandar pelo proprio zap.
+4. **Fase WhatsApp 2.5 — Migrar automacao n8n** — substituir o workflow n8n diario por APScheduler + send_text. Desligar dependencia do n8n.
+5. **Fase 4 (Integracoes externas)** — MCP Gmail, Google Calendar, Web Search.
+6. **Testar audio no iOS** — verificar se `audio/mp4` funciona no Safari/iPhone.
+7. **Upload PDF lento** — processamento sincrono pode travar em PDFs grandes; considerar background task.
 
 ## Ideias Futuras (Fase 5+)
 - **Execucao autonoma no PC local** — permitir que o Jarvis execute tarefas no computador do usuario (abrir programa, responder email, extrair dado de site). 3 caminhos possiveis, do mais simples ao mais poderoso:
