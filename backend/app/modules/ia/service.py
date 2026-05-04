@@ -2,11 +2,17 @@
 Modulo IA — Orquestrador de modelos de linguagem.
 
 Regras:
-- GPT-4o: cerebro principal do Jarvis (conversas, raciocinio, titulo)
-- Parsers NLP (lembrete, tarefa, recorrente): GPT-4o com response_format JSON
+- DeepSeek v4-pro (thinking ON):  cerebro principal — conversas e raciocinio
+- DeepSeek v4-pro (thinking OFF): parsers NLP e titulo — classificacao simples
+- OpenAI Whisper-1:               transcricao de audio
+- OpenAI text-embedding-3-small:  embeddings semanticos (1536 dim)
 """
 
+import json
+import re
 from collections.abc import AsyncGenerator
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from loguru import logger
 from openai import AsyncOpenAI
@@ -21,59 +27,109 @@ from app.modules.ia.prompts import (
     TITULO_PROMPT,
 )
 
-# Cliente de IA (instanciado uma vez)
+# ── Clientes (singletons) ────────────────────────────────────────────────────
+
+_deepseek_client: AsyncOpenAI | None = None
 _openai_client: AsyncOpenAI | None = None
 
 
+def get_deepseek() -> AsyncOpenAI:
+    global _deepseek_client
+    if _deepseek_client is None:
+        _deepseek_client = AsyncOpenAI(
+            api_key=settings.deepseek_api_key,
+            base_url="https://api.deepseek.com",
+        )
+    return _deepseek_client
+
+
 def get_openai() -> AsyncOpenAI:
+    """OpenAI usado apenas para Whisper e embeddings."""
     global _openai_client
     if _openai_client is None:
         _openai_client = AsyncOpenAI(api_key=settings.openai_api_key)
     return _openai_client
 
 
+# ── Helpers internos ─────────────────────────────────────────────────────────
+
+def _agora_brt() -> str:
+    return datetime.now(ZoneInfo("America/Sao_Paulo")).strftime("%Y-%m-%dT%H:%M:%S-03:00")
+
+
+def _extrair_json(texto: str) -> dict:
+    """Extrai JSON de resposta que pode vir com markdown ou texto extra."""
+    if not texto:
+        raise ValueError("resposta vazia")
+    texto = texto.strip()
+    if "```" in texto:
+        match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", texto, re.DOTALL)
+        if match:
+            texto = match.group(1)
+    inicio = texto.find("{")
+    fim = texto.rfind("}")
+    if inicio != -1 and fim != -1:
+        texto = texto[inicio:fim + 1]
+    return json.loads(texto)
+
+
+async def _chamar_parser(prompt: str, max_tokens: int = 300) -> dict:
+    """DeepSeek v4-pro sem thinking para classificacao NLP — rapido e deterministico."""
+    cliente = get_deepseek()
+    response = await cliente.chat.completions.create(
+        model="deepseek-v4-pro",
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=max_tokens,
+        temperature=0,
+        extra_body={"thinking": {"type": "disabled"}},
+    )
+    return _extrair_json(response.choices[0].message.content or "")
+
+
+# ── Cerebro principal — streaming ────────────────────────────────────────────
+
 async def gerar_resposta_stream(
     mensagens: list[dict],
     contexto_memoria: str = "",
 ) -> AsyncGenerator[tuple[str, str, int, int], None]:
     """
-    Gera resposta do Jarvis via streaming com GPT-4o.
+    Gera resposta do Jarvis via streaming com DeepSeek v4-pro (thinking ativo).
 
     Yields: (chunk_texto, modelo_usado, tokens_entrada, tokens_saida)
-    - tokens_entrada e tokens_saida so sao preenchidos no ultimo chunk (chunk vazio)
+    - tokens sao preenchidos apenas no ultimo chunk (chunk_texto vazio)
+    - thinking tokens sao filtrados — usuario ve apenas a resposta final
     """
     system = SYSTEM_PROMPT
     if contexto_memoria:
         system += f"\n\nContexto de memoria relevante:\n{contexto_memoria}"
 
-    async for chunk in _stream_openai(mensagens, system):
+    async for chunk in _stream_deepseek(mensagens, system):
         yield chunk
 
 
-async def _stream_openai(
+async def _stream_deepseek(
     mensagens: list[dict], system: str
 ) -> AsyncGenerator[tuple[str, str, int, int], None]:
-    """Streaming via OpenAI GPT-4o."""
-    cliente = get_openai()
-    modelo = "gpt-4o"
+    """Streaming via DeepSeek v4-pro com thinking — ignora delta.reasoning_content."""
+    cliente = get_deepseek()
+    modelo = "deepseek-v4-pro"
     tokens_entrada = 0
     tokens_saida = 0
 
-    # Formatar mensagens com system prompt para OpenAI
-    msgs_openai = [{"role": "system", "content": system}] + mensagens
+    msgs = [{"role": "system", "content": system}] + mensagens
 
     stream = await cliente.chat.completions.create(
         model=modelo,
-        messages=msgs_openai,
+        messages=msgs,
         max_tokens=4096,
         stream=True,
         stream_options={"include_usage": True},
     )
 
     async for chunk in stream:
+        # delta.content = resposta final; delta.reasoning_content = thinking (ignorado)
         if chunk.choices and chunk.choices[0].delta.content:
             yield (chunk.choices[0].delta.content, modelo, 0, 0)
-        # Ultimo chunk tem usage
         if chunk.usage:
             tokens_entrada = chunk.usage.prompt_tokens
             tokens_saida = chunk.usage.completion_tokens
@@ -81,12 +137,14 @@ async def _stream_openai(
     yield ("", modelo, tokens_entrada, tokens_saida)
 
 
+# ── Titulo de conversa ───────────────────────────────────────────────────────
+
 async def gerar_titulo(primeira_mensagem: str) -> str:
-    """Gera titulo curto para a conversa usando GPT-4o."""
+    """Gera titulo curto para a conversa usando DeepSeek v4-pro (sem thinking)."""
     try:
-        cliente = get_openai()
+        cliente = get_deepseek()
         response = await cliente.chat.completions.create(
-            model="gpt-4o",
+            model="deepseek-v4-pro",
             messages=[
                 {
                     "role": "user",
@@ -95,179 +153,64 @@ async def gerar_titulo(primeira_mensagem: str) -> str:
             ],
             max_tokens=20,
             temperature=0.3,
+            extra_body={"thinking": {"type": "disabled"}},
         )
-        return response.choices[0].message.content.strip()
+        return (response.choices[0].message.content or "Nova conversa").strip()
     except Exception as e:
         logger.warning("Falha ao gerar titulo: {}", str(e))
         return "Nova conversa"
 
 
-async def detectar_lembrete(mensagem: str) -> dict | None:
-    """
-    Detecta se a mensagem e um pedido de lembrete e retorna os dados parseados.
-    Retorna None se nao for um pedido de lembrete.
-    """
-    import json
-    from datetime import datetime
-    from zoneinfo import ZoneInfo
+# ── Parsers NLP ──────────────────────────────────────────────────────────────
 
+async def detectar_lembrete(mensagem: str) -> dict | None:
+    """Detecta pedido de lembrete pontual. Retorna dados parseados ou None."""
     try:
-        import re
-        agora = datetime.now(ZoneInfo("America/Sao_Paulo")).strftime("%Y-%m-%dT%H:%M:%S-03:00")
-        cliente = get_openai()
-        response = await cliente.chat.completions.create(
-            model="gpt-4o",
-            messages=[
-                {
-                    "role": "user",
-                    "content": LEMBRETE_PARSE_PROMPT.format(agora=agora, mensagem=mensagem[:500]),
-                }
-            ],
-            max_tokens=200,
-            temperature=0,
-            response_format={"type": "json_object"},
-        )
-        texto = response.choices[0].message.content.strip()
-        if not texto:
-            return None
-        # Extrair JSON mesmo se vier com texto em volta
-        match = re.search(r'\{.*\}', texto, re.DOTALL)
-        if not match:
-            return None
-        dados = json.loads(match.group())
-        if dados.get("eh_lembrete"):
-            return dados
-        return None
+        prompt = LEMBRETE_PARSE_PROMPT.format(agora=_agora_brt(), mensagem=mensagem[:500])
+        dados = await _chamar_parser(prompt, max_tokens=200)
+        return dados if dados.get("eh_lembrete") else None
     except Exception as e:
         logger.warning("Falha ao detectar lembrete: {}", str(e))
         return None
 
 
 async def detectar_tarefa(mensagem: str) -> dict | None:
-    """
-    Detecta se a mensagem e um pedido de criacao de tarefa e retorna os dados parseados.
-    Retorna None se nao for um pedido de tarefa.
-    """
-    import json
-    import re
-    from datetime import datetime
-    from zoneinfo import ZoneInfo
-
+    """Detecta pedido de criacao de tarefa/checklist. Retorna dados parseados ou None."""
     try:
-        agora = datetime.now(ZoneInfo("America/Sao_Paulo")).strftime("%Y-%m-%dT%H:%M:%S-03:00")
-        cliente = get_openai()
-        response = await cliente.chat.completions.create(
-            model="gpt-4o",
-            messages=[
-                {
-                    "role": "user",
-                    "content": TAREFA_PARSE_PROMPT.format(agora=agora, mensagem=mensagem[:500]),
-                }
-            ],
-            max_tokens=200,
-            temperature=0,
-            response_format={"type": "json_object"},
-        )
-        texto = response.choices[0].message.content.strip()
-        if not texto:
-            return None
-        match = re.search(r'\{.*\}', texto, re.DOTALL)
-        if not match:
-            return None
-        dados = json.loads(match.group())
-        if dados.get("eh_tarefa"):
-            return dados
-        return None
+        prompt = TAREFA_PARSE_PROMPT.format(agora=_agora_brt(), mensagem=mensagem[:500])
+        dados = await _chamar_parser(prompt, max_tokens=200)
+        return dados if dados.get("eh_tarefa") else None
     except Exception as e:
         logger.warning("Falha ao detectar tarefa: {}", str(e))
         return None
 
 
 async def detectar_tarefa_recorrente(mensagem: str) -> dict | None:
-    """
-    Detecta se a mensagem e um pedido de tarefa recorrente (cron) e retorna os dados parseados.
-    Retorna None se nao for um pedido de tarefa recorrente.
-    """
-    import json
-    import re
-    from datetime import datetime
-    from zoneinfo import ZoneInfo
-
+    """Detecta pedido de tarefa recorrente (cron). Retorna dados parseados ou None."""
     try:
-        agora = datetime.now(ZoneInfo("America/Sao_Paulo")).strftime("%Y-%m-%dT%H:%M:%S-03:00")
-        cliente = get_openai()
-        response = await cliente.chat.completions.create(
-            model="gpt-4o",
-            messages=[
-                {
-                    "role": "user",
-                    "content": TAREFA_RECORRENTE_PARSE_PROMPT.format(agora=agora, mensagem=mensagem[:500]),
-                }
-            ],
-            max_tokens=200,
-            temperature=0,
-            response_format={"type": "json_object"},
-        )
-        texto = response.choices[0].message.content.strip()
-        if not texto:
-            return None
-        match = re.search(r'\{.*\}', texto, re.DOTALL)
-        if not match:
-            return None
-        dados = json.loads(match.group())
-        if dados.get("eh_recorrente"):
-            return dados
-        return None
+        prompt = TAREFA_RECORRENTE_PARSE_PROMPT.format(agora=_agora_brt(), mensagem=mensagem[:500])
+        dados = await _chamar_parser(prompt, max_tokens=200)
+        return dados if dados.get("eh_recorrente") else None
     except Exception as e:
         logger.warning("Falha ao detectar tarefa recorrente: {}", str(e))
         return None
 
 
 async def detectar_evento(mensagem: str) -> dict | None:
-    """
-    Detecta se a mensagem e o relato de um evento (algo que aconteceu).
-    Retorna None se nao for evento.
-    """
-    import json
-    import re
-    from datetime import datetime
-    from zoneinfo import ZoneInfo
-
+    """Detecta relato de evento (memoria episodica). Retorna dados parseados ou None."""
     try:
-        agora = datetime.now(ZoneInfo("America/Sao_Paulo")).strftime("%Y-%m-%dT%H:%M:%S-03:00")
-        cliente = get_openai()
-        response = await cliente.chat.completions.create(
-            model="gpt-4o",
-            messages=[
-                {
-                    "role": "user",
-                    "content": EVENTO_PARSE_PROMPT.format(agora=agora, mensagem=mensagem[:500]),
-                }
-            ],
-            max_tokens=300,
-            temperature=0,
-            response_format={"type": "json_object"},
-        )
-        texto = response.choices[0].message.content.strip()
-        if not texto:
-            return None
-        match = re.search(r'\{.*\}', texto, re.DOTALL)
-        if not match:
-            return None
-        dados = json.loads(match.group())
-        if dados.get("eh_evento"):
-            return dados
-        return None
+        prompt = EVENTO_PARSE_PROMPT.format(agora=_agora_brt(), mensagem=mensagem[:500])
+        dados = await _chamar_parser(prompt, max_tokens=400)
+        return dados if dados.get("eh_evento") else None
     except Exception as e:
         logger.warning("Falha ao detectar evento: {}", str(e))
         return None
 
 
+# ── Audio e embeddings (OpenAI) ──────────────────────────────────────────────
+
 async def transcrever_audio(audio_bytes: bytes, filename: str = "audio.webm") -> str:
-    """
-    Transcreve audio via OpenAI Whisper.
-    Retorna o texto transcrito.
-    """
+    """Transcreve audio via OpenAI Whisper-1."""
     import io
     cliente = get_openai()
     audio_file = io.BytesIO(audio_bytes)
@@ -291,6 +234,6 @@ async def gerar_embedding(texto: str) -> list[float]:
     cliente = get_openai()
     response = await cliente.embeddings.create(
         model="text-embedding-3-small",
-        input=texto[:8000],  # Limite de tokens
+        input=texto[:8000],
     )
     return response.data[0].embedding

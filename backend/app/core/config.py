@@ -49,9 +49,10 @@ class Settings(BaseSettings):
     log_level: str = "info"
 
     # APIs de IA
-    anthropic_api_key: str
+    anthropic_api_key: str = ""
     openai_api_key: str
     openai_admin_key: str = ""  # Usada apenas para consultar /v1/organization/usage/*
+    deepseek_api_key: str = ""
 
     # Mem0
     mem0_collection_name: str = "jarvis_memories"
